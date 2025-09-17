@@ -1,13 +1,26 @@
 from rest_framework import serializers
-from .models import Bibliografia, ArbolCiencia
+from .models import Bibliography
 
-class BibliografiaSerializer(serializers.ModelSerializer):
+class BibliographySerializer(serializers.ModelSerializer):
     class Meta:
-        model = Bibliografia
-        fields = ("id", "nombre_archivo", "archivo", "fecha_subida")
+        model = Bibliography
+        fields = ('id', 'nombre_archivo', 'archivo', 'fecha_subida', 'user')
+        read_only_fields = ('id', 'fecha_subida', 'user')
 
-class ArbolCienciaSerializer(serializers.ModelSerializer):
-    bibliografia = BibliografiaSerializer(read_only=True)
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+class BibliographyListSerializer(serializers.ModelSerializer):
+    archivo_url = serializers.SerializerMethodField()
+    
     class Meta:
-        model = ArbolCiencia
-        fields = ("id", "bibliografia", "arbol_json", "fecha_generado")
+        model = Bibliography
+        fields = ('id', 'nombre_archivo', 'fecha_subida', 'archivo_url')
+        read_only_fields = ('id', 'fecha_subida', 'archivo_url')
+    
+    def get_archivo_url(self, obj):
+        request = self.context.get('request')
+        if obj.archivo and request:
+            return request.build_absolute_uri(obj.archivo.url)
+        return None

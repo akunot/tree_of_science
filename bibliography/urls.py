@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import UploadBibliographyView, UserBibliographiesListView, RetrieveTreeView
+from . import views
 
 urlpatterns = [
-    path("upload/", UploadBibliographyView.as_view(), name="upload-bib"),
-    path("my-list/", UserBibliographiesListView.as_view(), name="my-bibs"),
-    path("tree/<id>/", RetrieveTreeView.as_view(), name="retrieve-tree"),
+    path('list/', views.bibliography_list, name='bibliography_list'),
+    path('upload/', views.bibliography_upload, name='bibliography_upload'),
+    path('download/<int:pk>/', views.bibliography_download, name='bibliography_download'),
+    path('delete/<int:pk>/', views.bibliography_delete, name='bibliography_delete'),
 ]
