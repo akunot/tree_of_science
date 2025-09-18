@@ -57,7 +57,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'tree_science_backend.urls'
+ROOT_URLCONF = 'tree_of_science.urls'
 
 TEMPLATES = [
     {
@@ -74,7 +74,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'tree_science_backend.wsgi.application'
+WSGI_APPLICATION = 'tree_of_science.wsgi.application'
 
 
 # Database
