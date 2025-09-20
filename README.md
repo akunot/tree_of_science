@@ -51,11 +51,11 @@ pnpm run dev --host
 
 ```
 ├── tree_of_science/          # Backend Django
-│   ├── tree_of_science/   # Configuración principal
-│   ├── authentication/         # Autenticación de usuarios
-│   ├── bibliography/          # Gestión de bibliografías
-│   ├── trees/                 # Generación de árboles
-│   └── manage.py
+│     ├── tree_of_science/   # Configuración principal
+│     ├── authentication/         # Autenticación de usuarios
+│     ├── bibliography/          # Gestión de bibliografías
+│     ├── trees/                 # Generación de árboles
+│    └── manage.py
 │   ├── tos_frontend/     # Frontend React
 │     ├── src/
 │        ├── components/        # Componentes React
