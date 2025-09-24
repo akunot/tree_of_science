@@ -119,17 +119,6 @@ pnpm run dev --host
 - `POST /bibliography/upload/` - Subir archivo
 - `DELETE /bibliography/<id>/` - Eliminar
 
-## 🧪 Testing
-
-La aplicación ha sido probada exhaustivamente:
-
-- ✅ Autenticación y autorización
-- ✅ Generación de árboles
-- ✅ Gestión de bibliografías
-- ✅ Descarga de archivos
-- ✅ Interfaz responsive
-- ✅ Manejo de errores
-
 ## 🔒 Seguridad
 
 - Autenticación JWT
