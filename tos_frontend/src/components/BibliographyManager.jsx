@@ -302,7 +302,7 @@ const BibliographyManager = () => {
                 Subir archivos de bibliografía
               </p>
               <p className="text-gray-600">
-                Formatos soportados: PDF, DOC, DOCX, TXT
+                Formatos soportados: TXT, CSV
               </p>
               <div className="flex justify-center">
                 <Button
@@ -327,7 +327,7 @@ const BibliographyManager = () => {
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx,.txt"
+              accept=".csv,.txt"
               onChange={(e) => handleFileUpload(e.target.files)}
             />
           </div>
