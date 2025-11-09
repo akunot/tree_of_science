@@ -24,7 +24,7 @@ Una aplicación web moderna para la generación y gestión de árboles de conoci
 
 1. **Clona el repositorio:**
 ```bash
-git clone [URL_DEL_REPOSITORIO]
+git clone https://github.com/akunot/tree_of_science
 cd arbol-ciencia-unal
 ```
 
@@ -118,17 +118,6 @@ pnpm run dev --host
 - `GET /bibliography/list/` - Listar bibliografías
 - `POST /bibliography/upload/` - Subir archivo
 - `DELETE /bibliography/<id>/` - Eliminar
-
-## 🧪 Testing
-
-La aplicación ha sido probada exhaustivamente:
-
-- ✅ Autenticación y autorización
-- ✅ Generación de árboles
-- ✅ Gestión de bibliografías
-- ✅ Descarga de archivos
-- ✅ Interfaz responsive
-- ✅ Manejo de errores
 
 ## 🔒 Seguridad
 
