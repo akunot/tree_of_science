@@ -5,9 +5,6 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
-
-app_name = 'authentication'
-
 urlpatterns = [
     # =============== TUS URLs ACTUALES (COMPATIBLES) ===============
     
@@ -41,5 +38,17 @@ urlpatterns = [
     path('admin/users/', views.admin_users_list, name='admin_users_list'),
     path('admin/users/<int:user_id>/', views.admin_update_user, name='admin_update_user'),
     path('admin/users/<int:user_id>/activate/', views.admin_activate_user, name='admin_activate_user'),
-    path('admin/users/<int:user_id>/suspend/', views.admin_suspend_user, name='admin_suspend_user')
+    path('admin/users/<int:user_id>/suspend/', views.admin_suspend_user, name='admin_suspend_user'),
+
+    # solicitudes de administrador
+    path('request-admin/', views.request_admin_access, name='request_admin_access'),
+    path('admin/requests/', views.get_admin_requests, name='get_admin_requests'),
+    path('admin/requests/<int:request_id>/review/', views.review_admin_request, name='review_admin_request'),
+    
+    # URLs de administración (solo para administradores)
+    path('admin/create-invitation/', views.create_invitation, name='create_invitation'),
+    path('admin/invitations/', views.get_invitations, name='get_invitations'),
+    path('admin/invitations/<int:invitation_id>/', views.revoke_invitation, name='revoke_invitation'),
+    path('admin/stats/', views.get_dashboard_stats, name='get_dashboard_stats'),
+    path('admin/activity/', views.get_recent_activity, name='get_recent_activity')
 ]

@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Invitation, UserActivity
+from .models import User, Invitation, UserActivity, AdminRequest
+from django.utils import timezone
 
 # =============== SERIALIZERS COMPATIBLES CON TU SISTEMA ACTUAL ===============
 
@@ -78,10 +79,17 @@ class UserLoginSerializer(serializers.Serializer):
                 if user.is_locked():
                     raise serializers.ValidationError('Cuenta bloqueada temporalmente. Intente más tarde.')
                 
-                # Verificar estado de la cuenta (nuevas validaciones)
-                if not user.is_active:
-                    raise serializers.ValidationError('Cuenta desactivada.')
+                # VERIFICACIONES ADICIONALES PARA TU MODELO
                 
+                # 1. Verificar que la cuenta esté VERIFICADA
+                if hasattr(user, 'is_verified') and not user.is_verified:
+                    raise serializers.ValidationError('Cuenta no verificada. Revise su correo electrónico para verificar su cuenta.')
+                
+                # 2. Verificar que la invitación haya sido ACEPTADA
+                if hasattr(user, 'invitation_accepted') and not user.invitation_accepted:
+                    raise serializers.ValidationError('Debe aceptar la invitación antes de iniciar sesión.')
+                
+                # 3. Verificar estado de la cuenta
                 if user.user_state not in ['ACTIVE', 'INVITED']:
                     raise serializers.ValidationError('Cuenta no activa. Contacte al administrador.')
                 
@@ -92,7 +100,6 @@ class UserLoginSerializer(serializers.Serializer):
                 raise serializers.ValidationError('Credenciales inválidas.')
         else:
             raise serializers.ValidationError('Debe proporcionar email y contraseña.')
-
 
 class UserSerializer(serializers.ModelSerializer):
     # Agregar campos adicionales sin romper compatibilidad
@@ -271,75 +278,104 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Estado de usuario inválido.')
         return value
 
-
-# =============== SERIALIZERS COMPATIBLES PARA BACKWARDS COMPATIBILITY ===============
-
-# Mantén tus serializers existentes para compatibilidad
-# Solo se agregaron nuevos campos opcionales
-
-# Si quieres mantener exactamente tu serializer original:
-"""
-class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True)
-
+class AdminRequestSerializer(serializers.ModelSerializer):
+    time_since_created = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
     class Meta:
-        model = User
-        fields = ('email', 'password', 'password_confirm', 'first_name', 'last_name')
+        model = AdminRequest
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'affiliation', 
+            'justification', 'phone', 'status', 'status_display',
+            'created_at', 'reviewed_at', 'reviewed_by', 'review_notes',
+            'time_since_created'
+        ]
+        read_only_fields = [
+            'id', 'status', 'created_at', 'reviewed_at', 'reviewed_by', 'review_notes',
+            'status_display', 'time_since_created'
+        ]
 
-    def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError("Las contraseñas no coinciden.")
-        return attrs
-
-    def create(self, validated_data):
-        validated_data.pop('password_confirm')
-        user = User.objects.create_user(
-            username=validated_data['email'],
-            email=validated_data['email'],
-            password=validated_data['password'],
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name']
-        )
-        return user
-"""
-
-"""
-class UserLoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField()
-
-    def validate(self, attrs):
-        email = attrs.get('email')
-        password = attrs.get('password')
-
-        if email and password:
-            user = authenticate(username=email, password=password)
-            if not user:
-                raise serializers.ValidationError('Credenciales inválidas.')
-            if not user.is_active:
-                raise serializers.ValidationError('Cuenta desactivada.')
-            attrs['user'] = user
-            return attrs
+    def get_time_since_created(self, obj):
+        """Calcular tiempo transcurrido desde la creación"""
+        now = timezone.now()
+        diff = now - obj.created_at
+        
+        if diff.days > 0:
+            return f"{diff.days} día{'s' if diff.days != 1 else ''} atrás"
+        elif diff.seconds > 3600:
+            hours = diff.seconds // 3600
+            return f"{hours} hora{'s' if hours != 1 else ''} atrás"
+        elif diff.seconds > 60:
+            minutes = diff.seconds // 60
+            return f"{minutes} minuto{'s' if minutes != 1 else ''} atrás"
         else:
-            raise serializers.ValidationError('Debe proporcionar email y contraseña.')
-"""
+            return "Hace un momento"
 
-"""
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'date_joined')
-        read_only_fields = ('id', 'date_joined')
-"""
 
-"""
-class PasswordResetRequestSerializer(serializers.Serializer):
+class AdminRequestCreateSerializer(serializers.Serializer):
     email = serializers.EmailField()
-"""
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    affiliation = serializers.CharField(max_length=200)
+    justification = serializers.CharField(write_only=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
-"""
-class PasswordResetSerializer(serializers.Serializer):
-    token = serializers.CharField()
-    new_password = serializers.CharField(validators=[validate_password])
-"""
+    def validate_justification(self, value):
+        """Validar que la justificación tenga suficiente contenido"""
+        if len(value.strip()) < 50:
+            raise serializers.ValidationError(
+                "La justificación debe tener al menos 50 caracteres para explicar adecuadamente su solicitud."
+            )
+        return value.strip()
+
+    def validate_email(self, value):
+        """Validar que el email sea institucional"""
+        email = value.lower().strip()
+        
+        # Verificar que no sea un email ya registrado
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError(
+                "Ya existe una cuenta con este email. Por favor, inicie sesión directamente."
+            )
+        
+        # Verificar que no haya una solicitud pendiente
+        if AdminRequest.objects.filter(email=email, status='pending').exists():
+            raise serializers.ValidationError(
+                "Ya existe una solicitud pendiente para este email."
+            )
+        
+        return email
+    
+# =============== SERIALIZER PARA ESTADÍSTICAS DEL DASHBOARD ===============
+class DashboardStatsSerializer(serializers.Serializer):
+    total_users = serializers.IntegerField()
+    admin_users = serializers.IntegerField()
+    active_invitations = serializers.IntegerField()
+    pending_requests = serializers.IntegerField()
+    users_by_status = serializers.DictField()
+
+    def validate_total_users(self, value):
+        if value < 0:
+            raise serializers.ValidationError('El número de usuarios no puede ser negativo')
+        return value
+    
+    def validate_admin_users(self, value):
+        if value < 0:
+            raise serializers.ValidationError('El número de usuarios administradores no puede ser negativo')
+        return value
+    
+    def validate_active_invitations(self, value):
+        if value < 0:
+            raise serializers.ValidationError('El número de invitaciones activas no puede ser negativo')
+        return value
+    
+    def validate_pending_requests(self, value):
+        if value < 0:
+            raise serializers.ValidationError('El número de solicitudes pendientes no puede ser negativo')
+        return value
+    
+    
+    

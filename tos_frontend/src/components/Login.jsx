@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { useAuth } from '../hooks/useAuth.jsx';
+import { useAuth } from '../hooks/useAuth'; // ✅ Importar el hook
 import { authAPI } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,17 +18,26 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   
-  const { login } = useAuth();
+  const { login } = useAuth(); // ✅ Obtener la función login del hook
   const navigate = useNavigate();
 
   const loginMutation = useMutation({
     mutationFn: authAPI.login,
     onSuccess: (response) => {
+      // ✅ Usar la función login del hook (ya corregida)
       login(response.data);
-      navigate('/dashboard');
+      
+      // ✅ Redirigir según el rol
+      const user = response.data.user;
+      if (user.is_admin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     },
     onError: (error) => {
       setError(
+        error.response?.data?.error ||
         error.response?.data?.non_field_errors?.[0] ||
         error.response?.data?.detail ||
         'Error al iniciar sesión. Verifique sus credenciales.'
@@ -171,5 +180,4 @@ const Login = () => {
   );
 };
 
-export default Login;
-
+export default Login

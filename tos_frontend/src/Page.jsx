@@ -48,6 +48,7 @@ function Header({ isLoggedIn }) {
             <>
               <Link to="/login"><Button variant="outline">Iniciar Sesión</Button></Link>
               <Link to="/register"><Button variant="default">Registrarse</Button></Link>
+              <Link to="/admin-request"><Button variant="default">Solicitar Acceso</Button></Link>
             </>
           )}
         </nav>

@@ -30,11 +30,11 @@ class User(AbstractUser):
     user_state = models.CharField(
         max_length=10, 
         choices=USER_STATES, 
-        default='PENDING'
+        default='ACTIVE'
     )
     
     # Verificación
-    is_verified = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=True) # Cambiar a false mas adelante
     verification_token = models.CharField(max_length=100, blank=True, null=True)
     verification_date = models.DateTimeField(blank=True, null=True)
     
@@ -54,7 +54,7 @@ class User(AbstractUser):
         blank=True,
         related_name='invited_users'
     )
-    invitation_accepted = models.BooleanField(default=False)
+    invitation_accepted = models.BooleanField(default=True) # Cambiar a false mas adelante
     
     # Campos de auditoría
     last_login_ip = models.GenericIPAddressField(blank=True, null=True)
@@ -391,3 +391,56 @@ class Query(models.Model):
             models.Index(fields=['user', 'created_at']),
             models.Index(fields=['processing_state']),
         ]
+
+class AdminRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('approved', 'Aprobada'),
+        ('rejected', 'Rechazada'),
+    ]
+    
+    email = models.EmailField()
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    affiliation = models.CharField(max_length=200, verbose_name='Afiliación Institucional')
+    justification = models.TextField(verbose_name='Justificación')
+    phone = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
+    
+    status = models.CharField(
+        max_length=10, 
+        choices=STATUS_CHOICES, 
+        default='pending',
+        verbose_name='Estado'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Creación')
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de Revisión')
+    reviewed_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='reviewed_admin_requests',
+        verbose_name='Revisado por'
+    )
+    review_notes = models.TextField(blank=True, verbose_name='Notas de Revisión')
+    
+    class Meta:
+        verbose_name = 'Solicitud de Administrador'
+        verbose_name_plural = 'Solicitudes de Administrador'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.email}"
+    
+    @property
+    def is_pending(self):
+        return self.status == 'pending'
+    
+    @property
+    def is_approved(self):
+        return self.status == 'approved'
+    
+    @property
+    def is_rejected(self):
+        return self.status == 'rejected'
