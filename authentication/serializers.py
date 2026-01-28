@@ -105,15 +105,15 @@ class UserSerializer(serializers.ModelSerializer):
     # Agregar campos adicionales sin romper compatibilidad
     user_state = serializers.CharField(source='get_user_state_display', read_only=True)
     is_verified = serializers.BooleanField(read_only=True)
-    is_admin = serializers.BooleanField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
     invited_by_name = serializers.CharField(source='invited_by.get_full_name', read_only=True)
 
     class Meta:
         model = User
         # Mantener tus campos existentes + agregar nuevos
         fields = ('id', 'email', 'first_name', 'last_name', 'date_joined', 
-                 'user_state', 'is_verified', 'is_admin', 'invited_by_name')
-        read_only_fields = ('id', 'date_joined', 'user_state', 'is_verified', 'is_admin', 'invited_by_name')
+                 'user_state', 'is_verified', 'is_staff', 'invited_by_name')
+        read_only_fields = ('id', 'date_joined', 'user_state', 'is_verified', 'is_staff', 'invited_by_name')
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

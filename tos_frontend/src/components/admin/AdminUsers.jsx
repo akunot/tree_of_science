@@ -30,12 +30,21 @@ const AdminUsers = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: usersData, isLoading, error } = useQuery({ // Cambiamos 'data: users' a 'data: usersData'
+    const { data: usersData, isLoading, error } = useQuery({
     queryKey: ['admin-users', searchTerm, statusFilter, roleFilter],
-    queryFn: () => adminAPI.getUsers({ search: searchTerm, status: statusFilter, role: roleFilter }),
+    queryFn: () => {
+      // Creamos un objeto con los filtros solo si no son "all"
+      const params = { search: searchTerm };
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (roleFilter !== 'all') params.role = roleFilter;
+      
+      return adminAPI.getUsers(params);
+    },
   });
 
-  const users = Array.isArray(usersData) ? usersData : usersData?.results || [];  
+  console.log("Datos que llegan del servidor:", usersData);
+
+  const users = usersData?.users || [];
 
   const updateUserMutation = useMutation({
     mutationFn: ({ userId, data }) => adminAPI.updateUser(userId, data),
@@ -83,7 +92,12 @@ const AdminUsers = () => {
   };
 
   const handleEditUser = (user) => {
-    setUserToEdit(user);
+    // Creamos un nuevo objeto basado en 'user' pero añadiendo/traduciendo el campo 'role'
+    setUserToEdit({
+      ...user,
+      // Si is_admin es true (o is_staff), asignamos 'administrator', si no 'user'
+      role: (user.is_staff) ? 'administrator' : 'user'
+    });
     setEditingUser(true);
   };
 
@@ -92,8 +106,8 @@ const AdminUsers = () => {
       updateUserMutation.mutate({
         userId: userToEdit.id,
         data: {
-          status: userToEdit.status,
-          role: userToEdit.role,
+          status: userToEdit.user_state,
+          is_staff: userToEdit.role === 'administrator',
           first_name: userToEdit.first_name,
           last_name: userToEdit.last_name
         }
@@ -248,14 +262,14 @@ const AdminUsers = () => {
                             </div>
                           )}
                           <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant={getStatusBadge(user.status)}>
-                              {getStatusText(user.status)}
+                            <Badge variant={getStatusBadge(user.user_state)}>
+                              {getStatusText(user.user_state)}
                             </Badge>
-                            <Badge variant={getRoleBadge(user.role)}>
-                              {getRoleText(user.role)}
+                            <Badge variant={getRoleBadge(user.is_staff ? 'administrator' : 'user')}>
+                              {getRoleText(user.is_staff ? 'administrator' : 'user')}
                             </Badge>
                             <span className="text-xs text-gray-400">
-                              Registrado: {formatDate(user.created_at)}
+                              Registrado: {formatDate(user.date_joined)}
                             </span>
                           </div>
                         </div>

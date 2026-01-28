@@ -9,6 +9,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Count
+from django.db.models import Q
 
 from .serializers import (
     UserRegistrationSerializer, 
@@ -612,23 +613,37 @@ def user_activities(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_users_list(request):
-    """
-    Lista de usuarios (solo administradores)
-    """
     if not request.user.is_admin:
         return Response({
             'error': 'Requiere permisos de administrador'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    # Filtrar por estado si se especifica
-    state = request.query_params.get('state')
-    users = User.objects.all()
+    users = User.objects.all().order_by('-date_joined')
     
-    if state:
+    # 1. Filtro por Búsqueda (Nombre, Apellido, Email)
+    search = request.query_params.get('search')
+    if search:
+        users = users.filter(
+            Q(first_name__icontains=search) | 
+            Q(last_name__icontains=search) | 
+            Q(email__icontains=search)
+        )
+
+    # 2. Filtro por Estado (state)
+    # Nota: React envía 'status', asegúrate de capturar el nombre correcto
+    state = request.query_params.get('status') or request.query_params.get('state')
+    if state and state != 'all':
         users = users.filter(user_state=state)
     
-    serializer = UserSerializer(users, many=True)
+    # 3. Filtro por Rol
+    role = request.query_params.get('role')
+    if role and role != 'all':
+        if role == 'administrator':
+            users = users.filter(is_staff=True)
+        else:
+            users = users.filter(is_staff=False)
     
+    serializer = UserSerializer(users, many=True)
     return Response({
         'users': serializer.data
     })
