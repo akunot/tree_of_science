@@ -772,73 +772,45 @@ def admin_suspend_user(request, user_id):
 def request_admin_access(request):
     """
     Permite a cualquier usuario solicitar acceso de administrador
+    POST /api/auth/request-admin/
+    
+    Body esperado:
+    {
+        "email": "user@example.com",
+        "first_name": "Juan",
+        "last_name": "Pérez",
+        "affiliation": "Universidad Nacional",
+        "justification": "Necesito acceso porque...",
+        "phone": "+57 3001234567"
+    }
     """
-    email = request.data.get('email', '').strip().lower()
-    first_name = request.data.get('first_name', '').strip()
-    last_name = request.data.get('last_name', '').strip()
-    affiliation = request.data.get('affiliation', '').strip()
-    justification = request.data.get('justification', '').strip()
-    phone = request.data.get('phone', '').strip()
+    serializer = AdminRequestSerializer(data=request.data)
     
-    # Validaciones
-    if not all([email, first_name, last_name, affiliation, justification]):
-        return Response(
-            {'error': 'Todos los campos son requeridos'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    if serializer.is_valid():
+        try:
+            # Guardar la solicitud
+            admin_request = serializer.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Solicitud enviada exitosamente. Será revisada por los administradores.',
+                'data': {
+                    'id': admin_request.id,
+                    'email': admin_request.email,
+                    'first_name': admin_request.first_name,
+                    'last_name': admin_request.last_name,
+                    'status': admin_request.status,
+                    'created_at': admin_request.created_at
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error al procesar solicitud: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    if len(justification) < 50:
-        return Response(
-            {'error': 'La justificación debe tener al menos 50 caracteres'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Verificar que el email no esté ya registrado
-    if User.objects.filter(email=email).exists():
-        return Response(
-            {'error': 'Ya existe una cuenta con este email. Inicie sesión directamente.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Verificar que no haya una solicitud pendiente para este email
-    existing_request = AdminRequest.objects.filter(email=email, status='pending').first()
-    if existing_request:
-        return Response(
-            {'error': 'Ya existe una solicitud pendiente para este email.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        admin_request = AdminRequest.objects.create(
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            affiliation=affiliation,
-            justification=justification,
-            phone=phone
-        )
-        
-        # Aquí podrías enviar un email de notificación a los administradores
-        # send_admin_notification(admin_request)
-        
-        return Response({
-            'success': True,
-            'message': 'Solicitud enviada exitosamente. Será revisada por los administradores.',
-            'request': {
-                'id': admin_request.id,
-                'email': admin_request.email,
-                'first_name': admin_request.first_name,
-                'last_name': admin_request.last_name,
-                'status': admin_request.status,
-                'created_at': admin_request.created_at
-            }
-        }, status=status.HTTP_201_CREATED)
-        
-    except Exception as e:
-        return Response(
-            {'error': f'Error al procesar solicitud: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(['GET'])
@@ -846,96 +818,116 @@ def request_admin_access(request):
 def get_admin_requests(request):
     """
     Obtiene la lista de solicitudes de administrador (solo para administradores)
+    GET /api/auth/admin/requests/
+    
+    Query params opcionales:
+    - status: pending, approved, rejected
+    - search: buscar por nombre o email
     """
-    if request.user.role != 'administrator':
-        return Response(
-            {'error': 'No tienes permisos para ver estas solicitudes'},
-            status=status.HTTP_403_FORBIDDEN
+    
+    # Query base
+    queryset = AdminRequest.objects.all().order_by('-created_at')
+    
+    # Filtro por estado
+    status_filter = request.query_params.get('status')
+    if status_filter and status_filter != 'all':
+        queryset = queryset.filter(status=status_filter)
+    
+    # Búsqueda por nombre o email
+    search = request.query_params.get('search')
+    if search:
+        queryset = queryset.filter(
+            Q(first_name__icontains=search) |
+            Q(last_name__icontains=search) |
+            Q(email__icontains=search)
         )
     
-    requests = AdminRequest.objects.all().order_by('-created_at')
-    serializer = AdminRequestSerializer(requests, many=True)
+    # Serializar
+    serializer = AdminRequestSerializer(queryset, many=True)
     
     return Response({
-        'requests': serializer.data,
-        'total': requests.count(),
-        'pending_count': requests.filter(status='pending').count()
-    })
+        'count': queryset.count(),
+        'results': serializer.data,
+        'pending_count': AdminRequest.objects.filter(status='pending').count(),
+        'approved_count': AdminRequest.objects.filter(status='approved').count(),
+        'rejected_count': AdminRequest.objects.filter(status='rejected').count(),
+    }, status=status.HTTP_200_OK)
 
 
-@api_view(['POST'])
+@api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def review_admin_request(request, request_id):
     """
     Revisa y decide sobre una solicitud de administrador
+    PATCH /api/auth/admin/requests/<request_id>/review/
+    
+    Body esperado:
+    {
+        "status": "approved" o "rejected",
+        "review_notes": "Notas opcionales sobre la decisión"
+    }
     """
-    if request.user.role != 'administrator':
-        return Response(
-            {'error': 'No tienes permisos para revisar solicitudes'},
-            status=status.HTTP_403_FORBIDDEN
-        )
-    
-    action = request.data.get('action')  # 'approve' o 'reject'
-    notes = request.data.get('notes', '')
-    
-    if action not in ['approve', 'reject']:
-        return Response(
-            {'error': 'Acción inválida. Use "approve" o "reject"'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
     
     try:
         admin_request = AdminRequest.objects.get(id=request_id)
-        
-        if not admin_request.is_pending:
-            return Response(
-                {'error': 'Esta solicitud ya ha sido revisada'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Actualizar estado de la solicitud
-        admin_request.status = 'approved' if action == 'approve' else 'rejected'
-        admin_request.reviewed_at = timezone.now()
+    except AdminRequest.DoesNotExist:
+        return Response({
+            'error': 'Solicitud no encontrada'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Validar que no haya sido revisada ya
+    if admin_request.status != 'pending':
+        return Response({
+            'error': 'Esta solicitud ya ha sido revisada'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Obtener datos de la solicitud
+    new_status = request.data.get('status')
+    review_notes = request.data.get('review_notes', '')
+    
+    # Validar estado
+    if new_status not in ['approved', 'rejected']:
+        return Response({
+            'error': 'Estado inválido. Use "approved" o "rejected"'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Actualizar solicitud
+        admin_request.status = new_status
+        admin_request.review_notes = review_notes
         admin_request.reviewed_by = request.user
-        admin_request.review_notes = notes
         admin_request.save()
         
-        # Si se aprueba, crear una invitación automáticamente
-        invitation = None
-        if action == 'approve':
-            from .models import Invitation
-            invitation = Invitation.objects.create(
-                email=admin_request.email,
-                first_name=admin_request.first_name,
-                last_name=admin_request.last_name,
-                role='administrator',
-                invited_by=request.user
-            )
-            
-            # Enviar email con invitación (opcional)
-            # send_invitation_email(admin_request, invitation)
+        # Si es aprobada, crear invitación automáticamente
+        invitation_url = None
+        if new_status == 'approved':
+            try:
+                invitation = Invitation.objects.create(
+                    email=admin_request.email,
+                    first_name=admin_request.first_name,
+                    last_name=admin_request.last_name,
+                    inviter=request.user,
+                    message=f'Has sido invitado a ser administrador de Árbol de la Ciencia'
+                )
+                invitation_url = f"http://localhost:3000/register?token={invitation.token}"
+            except Exception as e:
+                print(f"⚠️ Error creando invitación: {e}")
+        
+        # Serializar la solicitud actualizada
+        serializer = AdminRequestSerializer(admin_request)
         
         return Response({
             'success': True,
-            'message': f'Solicitud {"aprobada" if action == "approve" else "rechazada"} exitosamente',
-            'request': {
-                'id': admin_request.id,
-                'status': admin_request.status,
-                'reviewed_at': admin_request.reviewed_at,
-                'reviewed_by': admin_request.reviewed_by.email if admin_request.reviewed_by else None,
-                'review_notes': admin_request.review_notes
-            },
-            'invitation': {
-                'token': invitation.token if invitation else None,
-                'invite_url': f"{request.get_host()}/register?token={invitation.token}" if invitation else None
-            } if action == 'approve' else None
-        })
+            'message': f'Solicitud {new_status}',
+            'data': serializer.data,
+            'invitation_url': invitation_url
+        }, status=status.HTTP_200_OK)
         
-    except AdminRequest.DoesNotExist:
-        return Response(
-            {'error': 'Solicitud no encontrada'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+    except Exception as e:
+        return Response({
+            'error': f'Error al procesar solicitud: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1015,18 +1007,28 @@ def create_invitation(request):
 @permission_classes([IsAuthenticated])
 def get_invitations(request):
     """
-    Obtiene la lista de invitaciones enviadas por el usuario actual
+    Obtiene invitaciones según el rol del usuario
     """
-    invitations = Invitation.objects.filter(
-        inviter=request.user
-    ).order_by('-created_at')
+    # Verificar si es admin
+    if request.user.is_staff:
+        # Admin: ver TODAS las invitaciones
+        invitations = Invitation.objects.all().order_by('-created_at')
+    else:
+        # Usuario normal: solo las suyas
+        invitations = Invitation.objects.filter(
+            inviter=request.user
+        ).order_by('-created_at')
     
     serializer = InvitationSerializer(invitations, many=True)
     
+    # ✅ CAMBIO: Retornar { invitations: [...] } en lugar de [...]
     return Response({
-        'invitations': serializer.data,
+        'invitations': serializer.data,  # ← Array dentro de objeto
         'total': invitations.count(),
-        'pending_count': invitations.filter(status='pending').count()
+        'pending_count': invitations.filter(state='PENDING').count(),
+        'accepted_count': invitations.filter(state='ACCEPTED').count(),
+        'expired_count': invitations.filter(state='EXPIRED').count(),
+        'cancelled_count': invitations.filter(state='CANCELLED').count(),
     })
 
 

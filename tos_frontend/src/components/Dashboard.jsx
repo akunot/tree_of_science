@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -13,17 +14,29 @@ import {
   Calendar,
   TrendingUp,
   Users,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Consultar historial de árboles
-  const { data: trees = [], isLoading: treesLoading } = useQuery({
-    queryKey: ['trees'],
-    queryFn: () => treeAPI.history().then(res => res.data),
+   // Consultar historial de árboles (paginado)
+  const { data: treesData, isLoading: treesLoading } = useQuery({
+    queryKey: ['trees-dashboard'],
+    queryFn: () =>
+      treeAPI
+        .history({
+          page: 1,
+          page_size: 10,
+        })
+        .then((res) => res.data),
   });
+
+  const trees = treesData?.results || [];
 
   // Consultar bibliografías
   const { data: bibliographies = [], isLoading: bibliographiesLoading } = useQuery({
@@ -40,6 +53,46 @@ const Dashboard = () => {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  // Función para eliminar árbol
+  const handleDeleteTree = async (treeId, treeName) => {
+    const confirmed = window.confirm(
+      `¿Está seguro de que desea eliminar el árbol "${treeName}"? Esta acción no se puede deshacer.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleteLoading(true);
+    try {
+      await treeAPI.delete(treeId);
+      queryClient.invalidateQueries({ queryKey: ['trees'] });
+    } catch (error) {
+      console.error('Error al eliminar árbol:', error);
+      alert('Error al eliminar el árbol. Por favor, intente de nuevo.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Función para eliminar bibliografía
+  const handleDeleteBibliography = async (bibId, bibName) => {
+    const confirmed = window.confirm(
+      `¿Está seguro de que desea eliminar la bibliografía "${bibName}"? Esta acción no se puede deshacer.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleteLoading(true);
+    try {
+      await bibliographyAPI.delete(bibId);
+      queryClient.invalidateQueries({ queryKey: ['bibliographies'] });
+    } catch (error) {
+      console.error('Error al eliminar bibliografía:', error);
+      alert('Error al eliminar la bibliografía. Por favor, intente de nuevo.');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -72,7 +125,8 @@ const Dashboard = () => {
             <TreePine className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{trees.length}</div>
+            {/* treesData?.count es el total real paginado; fallback a trees.length */}
+            <div className="text-2xl font-bold">{treesData?.count ?? trees.length}</div>
             <p className="text-xs text-muted-foreground">
               Total de árboles creados
             </p>
@@ -199,9 +253,20 @@ const Dashboard = () => {
                         </Badge>
                       )}
                     </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to={`/tree/${tree.id}`}>Ver</Link>
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to={`/tree/${tree.id}`}>Ver</Link>
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteTree(tree.id, tree.title || `Árbol ${tree.id}`)}
+                        disabled={deleteLoading}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -249,7 +314,17 @@ const Dashboard = () => {
                         {formatDate(bibliography.fecha_subida)}
                       </p>
                     </div>
-                    <FileText className="h-4 w-4 text-gray-400" />
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteBibliography(bibliography.id, bibliography.nombre_archivo)}
+                        disabled={deleteLoading}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -270,4 +345,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

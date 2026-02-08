@@ -101,19 +101,22 @@ class UserLoginSerializer(serializers.Serializer):
         else:
             raise serializers.ValidationError('Debe proporcionar email y contraseña.')
 
+
 class UserSerializer(serializers.ModelSerializer):
-    # Agregar campos adicionales sin romper compatibilidad
-    user_state = serializers.CharField(source='get_user_state_display', read_only=True)
+    # NO retorna 'Activo', 'Pendiente', 'Suspendido', 'Invitado'
+    
+    # Campo adicional: si necesitas mostrar el texto legible
+    user_state_display = serializers.CharField(source='get_user_state_display', read_only=True)
+    
     is_verified = serializers.BooleanField(read_only=True)
     is_staff = serializers.BooleanField(read_only=True)
-    invited_by_name = serializers.CharField(source='invited_by.get_full_name', read_only=True)
+    invited_by_name = serializers.CharField(source='invited_by.get_full_name', read_only=True, allow_null=True)
 
     class Meta:
         model = User
-        # Mantener tus campos existentes + agregar nuevos
         fields = ('id', 'email', 'first_name', 'last_name', 'date_joined', 
-                 'user_state', 'is_verified', 'is_staff', 'invited_by_name')
-        read_only_fields = ('id', 'date_joined', 'user_state', 'is_verified', 'is_staff', 'invited_by_name')
+                 'user_state', 'user_state_display', 'is_verified', 'is_staff', 'invited_by_name')
+        read_only_fields = ('id', 'date_joined', 'user_state', 'user_state_display', 'is_verified', 'is_staff', 'invited_by_name')
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
@@ -171,16 +174,51 @@ class PasswordResetSerializer(serializers.Serializer):
 class InvitationSerializer(serializers.ModelSerializer):
     """Serializer para invitaciones (nuevo)"""
     inviter_name = serializers.CharField(source='inviter.get_full_name', read_only=True)
-    is_expired = serializers.BooleanField(read_only=True)
+    is_expired = serializers.SerializerMethodField()
     days_remaining = serializers.SerializerMethodField()
+    
+    state_display = serializers.CharField(source='get_state_display', read_only=True, allow_null=True)
+    
+    is_used = serializers.SerializerMethodField()
+    used_by = serializers.SerializerMethodField()
     
     class Meta:
         model = Invitation
         fields = ('id', 'token', 'email', 'first_name', 'last_name', 
-                 'message', 'state', 'inviter_name', 'created_at', 
-                 'expires_at', 'is_expired', 'days_remaining')
-        read_only_fields = ('id', 'token', 'state', 'inviter_name', 
-                           'created_at', 'expires_at', 'is_expired', 'days_remaining')
+                 'message', 'state', 'state_display', 'inviter_name', 'created_at', 
+                 'expires_at', 'is_expired', 'days_remaining', 'is_used', 'used_by',
+                 'organization')
+        read_only_fields = ('id', 'token', 'state', 'state_display', 'inviter_name', 
+                           'created_at', 'expires_at', 'is_expired', 'days_remaining', 'is_used', 'used_by')
+    
+    def get_is_expired(self, obj):
+        """Verificar si la invitación expiró"""
+        return obj.is_expired()
+    
+    def get_is_used(self, obj):
+        """Verificar si la invitación fue usada"""
+        return obj.state == 'ACCEPTED'
+    
+    def get_used_by(self, obj):
+        """Obtener el usuario que aceptó la invitación"""
+        if obj.state == 'ACCEPTED':
+            try:
+                user = User.objects.get(email=obj.email, invitation_accepted=True)
+                return {
+                    'id': user.id,
+                    'email': user.email,
+                    'name': user.get_full_name()
+                }
+            except User.DoesNotExist:
+                return None
+        return None
+    
+    def get_days_remaining(self, obj):
+        from django.utils import timezone
+        if obj.expires_at:
+            days_left = (obj.expires_at - timezone.now()).days
+            return max(0, days_left)
+        return 0
     
     def validate_email(self, value):
         # Verificar que el email no esté ya registrado
@@ -192,13 +230,6 @@ class InvitationSerializer(serializers.ModelSerializer):
         # Agregar el inviter (usuario actual)
         validated_data['inviter'] = self.context['request'].user
         return super().create(validated_data)
-    
-    def get_days_remaining(self, obj):
-        from django.utils import timezone
-        if obj.expires_at:
-            days_left = (obj.expires_at - timezone.now()).days
-            return max(0, days_left)
-        return 0
 
 
 # =============== SERIALIZER PARA ACTIVIDADES ===============
@@ -277,6 +308,7 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
         if value not in valid_states:
             raise serializers.ValidationError('Estado de usuario inválido.')
         return value
+
 
 class AdminRequestSerializer(serializers.ModelSerializer):
     time_since_created = serializers.SerializerMethodField()
@@ -376,6 +408,3 @@ class DashboardStatsSerializer(serializers.Serializer):
         if value < 0:
             raise serializers.ValidationError('El número de solicitudes pendientes no puede ser negativo')
         return value
-    
-    
-    

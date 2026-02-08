@@ -32,7 +32,7 @@ const Layout = ({ children }) => {
     { name: 'Generar Árbol', href: '/generate', icon: TreePine },
     { name: 'Historial', href: '/history', icon: History },
     { name: 'Bibliografía', href: '/bibliography', icon: BookOpen },
-    ...(user?.is_admin || user?.is_superuser ? [{ name: 'Panel Admin', href: '/admin/', icon: User }] : [])
+    ...(user?.is_staff || user?.is_active ? [{ name: 'Panel Admin', href: '/admin/', icon: User }] : [])
   ];
 
   const handleLogout = () => {

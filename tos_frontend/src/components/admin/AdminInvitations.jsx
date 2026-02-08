@@ -18,8 +18,7 @@ import {
   User,
   AlertCircle,
   CheckCircle,
-  Clock,
-  CheckCircle2
+  Clock
 } from 'lucide-react';
 
 const AdminInvitations = () => {
@@ -31,6 +30,7 @@ const AdminInvitations = () => {
     role: 'user'
   });
   const [copiedToken, setCopiedToken] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const queryClient = useQueryClient();
 
@@ -48,8 +48,15 @@ const AdminInvitations = () => {
         email: '',
         first_name: '',
         last_name: '',
-        role: 'user'
+        role: 'user',
       });
+      alert('Invitación creada correctamente.');
+    },
+    onError: (error) => {
+      alert(
+        error?.response?.data?.detail ||
+          'Error al crear la invitación. Verifique los datos e intente nuevamente.'
+      );
     },
   });
 
@@ -98,6 +105,11 @@ const AdminInvitations = () => {
 
   const handleCreateInvitation = (e) => {
     e.preventDefault();
+    const email = formData.email.trim();
+    if (!email.includes('@')) {
+      alert('Ingrese un correo electrónico válido.');
+      return;
+    }
     createInvitationMutation.mutate(formData);
   };
 
@@ -245,8 +257,38 @@ const AdminInvitations = () => {
               </Alert>
             )}
 
+            {/* Filtros simples */}
+            {invitations?.length > 0 && (
+              <div className="flex items-center justify-end mb-4 gap-2">
+                <Label htmlFor="status" className="text-xs text-gray-500">
+                  Estado
+                </Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="active">Activas</SelectItem>
+                    <SelectItem value="used">Usadas</SelectItem>
+                    <SelectItem value="expired">Expiradas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-4">
-              {invitations?.map((invitation) => {
+              {invitations
+                ?.filter((invitation) => {
+                  if (statusFilter === 'all') return true;
+                  if (statusFilter === 'used') return invitation.is_used;
+                  const isExpired =
+                    invitation.expires_at &&
+                    new Date(invitation.expires_at) < new Date();
+                  if (statusFilter === 'expired') return isExpired;
+                  if (statusFilter === 'active') return !invitation.is_used && !isExpired;
+                  return true;
+                }).map((invitation) => {
                 const statusBadge = getStatusBadge(invitation);
                 return (
                   <div key={invitation.id} className="border rounded-lg p-4">

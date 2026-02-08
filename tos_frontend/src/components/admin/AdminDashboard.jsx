@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,10 +10,6 @@ import {
   Users, 
   UserPlus, 
   Mail, 
-  Activity, 
-  TrendingUp, 
-  AlertCircle,
-  CheckCircle,
   Clock,
   Settings
 } from 'lucide-react';
@@ -21,23 +18,7 @@ const AdminDashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: adminAPI.getStats,
-    refetchInterval: 30000, // Actualizar cada 30 segundos
   });
-
-  const { data: recentActivity } = useQuery({
-    queryKey: ['admin-recent-activity'],
-    queryFn: adminAPI.getRecentActivity,
-  });
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const getStatusBadge = (status) => {
     const variants = {
@@ -138,45 +119,8 @@ const AdminDashboard = () => {
           })}
         </div>
 
-        {/* Sección principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Actividad reciente */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Activity className="h-5 w-5 mr-2" />
-                Actividad Reciente
-              </CardTitle>
-              <CardDescription>
-                Últimos eventos importantes del sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity?.slice(0, 5).map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Activity className="h-4 w-4 text-blue-600" />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-900">{activity.description}</p>
-                      <p className="text-xs text-gray-500">{formatDate(activity.created_at)}</p>
-                    </div>
-                  </div>
-                ))}
-                
-                {(!recentActivity || recentActivity.length === 0) && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No hay actividad reciente</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
+        {/* Sección principal: solo acciones rápidas */}
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
           {/* Acciones rápidas */}
           <Card>
             <CardHeader>
@@ -187,31 +131,31 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <Button className="w-full justify-start" asChild>
-                <a href="/admin/users">
+                <Link to="/admin/users">
                   <Users className="h-4 w-4 mr-3" />
                   Gestionar Usuarios
-                </a>
+                </Link>
               </Button>
-              
+
               <Button variant="outline" className="w-full justify-start" asChild>
-                <a href="/admin/invitations">
+                <Link to="/admin/invitations">
                   <UserPlus className="h-4 w-4 mr-3" />
                   Crear Invitación
-                </a>
+                </Link>
               </Button>
-              
+
               <Button variant="outline" className="w-full justify-start" asChild>
-                <a href="/admin/requests">
+                <Link to="/admin/requests">
                   <Mail className="h-4 w-4 mr-3" />
                   Revisar Solicitudes
-                </a>
+                </Link>
               </Button>
-              
+
               <Button variant="outline" className="w-full justify-start" asChild>
-                <a href="/admin/settings">
+                <Link to="/admin/settings">
                   <Settings className="h-4 w-4 mr-3" />
                   Configuraciones
-                </a>
+                </Link>
               </Button>
             </CardContent>
           </Card>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { treeAPI } from '../lib/api';
@@ -30,20 +30,46 @@ import {
   Calendar,
   MoreHorizontal,
   FileText,
-  FileJson
+  FileJson,
+  Sheet,
+  FileDown,
+  Zap
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const TreeHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTrees, setSelectedTrees] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Consultar historial de árboles
-  const { data: trees = [], isLoading, error } = useQuery({
-    queryKey: ['trees'],
-    queryFn: () => treeAPI.history().then(res => res.data),
+  // Debounce del término de búsqueda
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchTerm), 700);
+    return () => clearTimeout(id);
+  }, [searchTerm]);
+
+  // Consultar historial de árboles (paginado + búsqueda en backend)
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['trees', page, pageSize, debouncedSearch],
+    queryFn: () =>
+      treeAPI
+        .history({
+          page,
+          page_size: pageSize,
+          // Solo mandar search si tiene al menos 2 caracteres
+          search: debouncedSearch && debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        })
+        .then((res) => res.data),
+    keepPreviousData: true,
   });
+
+  const trees = data?.results || [];
+  const totalTrees = data?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(totalTrees / pageSize));
 
   // Mutación para eliminar árbol
   const deleteTreeMutation = useMutation({
@@ -64,42 +90,216 @@ const TreeHistory = () => {
     },
   });
 
-  // Mutación para descargar árbol
-  const downloadTreeMutation = useMutation({
-    mutationFn: ({ id, format }) => treeAPI.download(id, format),
-    onSuccess: (response, { format, title }) => {
-      // Crear enlace de descarga
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+  // ========== FUNCIÓN: GENERAR PDF ==========
+  const generatePDFFromTree = async (tree) => {
+    try {
+      toast({
+        title: 'Preparando PDF...',
+        description: 'Generando documento en el servidor.',
+        duration: 1500,
+      });
+
+      const response = await treeAPI.download(tree.id, 'pdf');
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
+
+      const safeTitle = String(tree.title || 'tree')
+        .replace(/[^a-z0-9]/gi, '_')
+        .toLowerCase();
+
       link.href = url;
-      link.setAttribute('download', `${title || 'arbol'}.${format}`);
+      link.download = `arbol-${safeTitle}-${new Date()
+        .toISOString()
+        .split('T')[0]}.pdf`;
+
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
       toast({
-        title: "Descarga iniciada",
-        description: `El archivo ${format.toUpperCase()} se está descargando.`,
+        title: '✓ Éxito',
+        description: 'PDF descargado correctamente.',
+        duration: 2000,
       });
-    },
-    onError: () => {
+      return true;
+    } catch (error) {
+      console.error('Error descargando PDF:', error);
       toast({
-        title: "Error",
-        description: "No se pudo descargar el archivo. Intente nuevamente.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'No se pudo descargar el PDF. Verifica la conexión.',
+        variant: 'destructive',
       });
-    },
-  });
+      return false;
+    }
+  };
+
+  // ========== FUNCIÓN: GENERAR CSV ==========
+  const generateCSVFromTree = async (tree) => {
+    try {
+      let treeData = tree;
+      // Si no hay arbol_json, obtener detalles completos del árbol
+      if (!tree?.arbol_json?.nodes) {
+        toast({
+          title: "Cargando datos...",
+          description: "Obteniendo información del árbol.",
+          duration: 2000,
+        });
+        const response = await treeAPI.detail(tree.id);
+        treeData = response.data;
+      }
+
+      const {nodes} = treeData.arbol_json;
+      if (!nodes || nodes.length === 0) {
+        toast({
+          title: "Error",
+          description: "El árbol no tiene datos para exportar",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const headers = [
+        'ID',
+        'Título',
+        'Tipo',
+        'Grupo',
+        'Año',
+        'Autores',
+        'DOI',
+        'PMID',
+        'arXiv',
+        'URL',
+        'Raíz',
+        'Tronco',
+        'Hoja',
+        'SAP',
+        'Citas'
+      ];
+
+      const rows = nodes.map(node => [
+        node?.id || '',
+        String(node?.label || '').replace(/"/g, '""').substring(0, 100),
+        String(node?.type_label || '').replace(/"/g, '""'),
+        node?.group || '',
+        node?.year || '',
+        Array.isArray(node?.authors) 
+          ? node.authors.join('; ')
+          : String(node?.authors || ''),
+        node?.doi || '',
+        node?.pmid || '',
+        node?.arxiv_id || '',
+        node?.url || '',
+        node?.root || 0,
+        node?.trunk || 0,
+        node?.leaf || 0,
+        node?._sap || 0,
+        node?.times_cited || 0
+      ]);
+
+      const csvContent = [headers, ...rows]
+        .map(row =>
+          row
+            .map(cell => {
+              const cellString = String(cell || '');
+              const needsQuotes = cellString.includes(',') || 
+                                 cellString.includes('"') || 
+                                 cellString.includes('\n');
+              return needsQuotes 
+                ? `"${cellString.replace(/"/g, '""')}"` 
+                : cellString;
+            })
+            .join(',')
+        )
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `arbol-${String(treeData.title || 'tree').replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: '✓ Éxito',
+        description: `CSV generado con ${nodes.length} nodos`,
+        duration: 2000,
+      });
+      return true;
+    } catch (error) {
+      console.error('Error generando CSV:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo generar el CSV. Verifica la conexión.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  // ========== FUNCIÓN: DESCARGAR JSON ==========
+  const downloadJSON = async (tree) => {
+    try {
+      let treeData = tree;
+      // Si no hay arbol_json, obtener detalles completos del árbol
+      if (!tree?.arbol_json?.nodes) {
+        toast({
+          title: "Cargando datos...",
+          description: "Obteniendo información del árbol.",
+          duration: 2000,
+        });
+        const response = await treeAPI.detail(tree.id);
+        treeData = response.data;
+      }
+
+      const nodes = treeData.arbol_json?.nodes || [];
+      const stats = treeData.arbol_json?.statistics || {};
+
+      const exportData = {
+        title: treeData.title,
+        seed: treeData.seed,
+        bibliography_name: treeData.bibliography_name,
+        statistics: stats,
+        generated_at: treeData.fecha_generado,
+        total_nodes: nodes.length,
+        nodes: nodes
+      };
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `arbol-${String(treeData.title || 'tree').replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: '✓ Éxito',
+        description: `JSON descargado con ${nodes.length} nodos`,
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error descargando JSON:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo descargar el JSON. Verifica la conexión.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleDelete = (id, title) => {
     if (window.confirm(`¿Está seguro de que desea eliminar el árbol "${title || `ID: ${id}`}"?`)) {
       deleteTreeMutation.mutate(id);
     }
-  };
-
-  const handleDownload = (id, format, title) => {
-    downloadTreeMutation.mutate({ id, format, title });
   };
 
   const formatDate = (dateString) => {
@@ -113,11 +313,95 @@ const TreeHistory = () => {
   };
 
   // Filtrar árboles por término de búsqueda
-  const filteredTrees = trees.filter(tree =>
-    tree.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tree.seed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tree.bibliography_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+   const filteredTrees = trees;
+
+  // Toggle selección de árbol
+  const toggleTreeSelection = (treeId) => {
+    setSelectedTrees(prev => 
+      prev.includes(treeId)
+        ? prev.filter(id => id !== treeId)
+        : [...prev, treeId]
+    );
+  };
+
+  // Seleccionar/deseleccionar todos
+  const toggleSelectAll = () => {
+    if (selectedTrees.length === filteredTrees.length) {
+      setSelectedTrees([]);
+    } else {
+      setSelectedTrees(filteredTrees.map(t => t.id));
+    }
+  };
+
+  // Descargar múltiples en CSV consolidado
+  const handleDownloadConsolidated = () => {
+    if (selectedTrees.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Selecciona al menos un árbol para descargar.",
+      });
+      return;
+    }
+
+    try {
+      const treesToExport = filteredTrees.filter(t => selectedTrees.includes(t.id));
+      
+      const csvData = [
+        ['ID', 'Título', 'Semilla', 'Bibliografía', 'Fecha', 'Nodos', 'Raíces', 'Troncos', 'Hojas'],
+        ...treesToExport.map(tree => [
+          tree?.id || '',
+          String(tree?.title || '').replace(/"/g, '""'),
+          String(tree?.seed || '').replace(/"/g, '""'),
+          String(tree?.bibliography_name || '').replace(/"/g, '""'),
+          formatDate(tree?.fecha_generado),
+          tree?.nodes_count ?? 0,
+          tree?.arbol_json?.statistics?.roots || 0,
+          tree?.arbol_json?.statistics?.trunks || 0,
+          tree?.arbol_json?.statistics?.leaves || 0,
+        ])
+      ];
+
+      const csvContent = csvData
+        .map(row =>
+          row
+            .map(cell => {
+              const cellString = String(cell || '');
+              const needsQuotes = cellString.includes(',') || 
+                                 cellString.includes('"') || 
+                                 cellString.includes('\n');
+              return needsQuotes 
+                ? `"${cellString.replace(/"/g, '""')}"` 
+                : cellString;
+            })
+            .join(',')
+        )
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `arboles-consolidado-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: '✓ Éxito',
+        description: `${treesToExport.length} árbol(es) exportado(s)`,
+        duration: 2000,
+      });
+      setSelectedTrees([]);
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo descargar los árboles',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -155,7 +439,7 @@ const TreeHistory = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Historial de Árboles</h1>
             <p className="text-gray-600 mt-1">
-              Gestione y explore sus árboles de la ciencia generados
+              Gestione y exporte sus árboles de la ciencia
             </p>
           </div>
         </div>
@@ -175,7 +459,7 @@ const TreeHistory = () => {
             <TreePine className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{trees.length}</div>
+            <div className="text-2xl font-bold">{totalTrees}</div>
           </CardContent>
         </Card>
 
@@ -209,13 +493,27 @@ const TreeHistory = () => {
         </Card>
       </div>
 
-      {/* Barra de búsqueda */}
+      {/* Barra de búsqueda y acciones */}
       <Card>
         <CardHeader>
-          <CardTitle>Buscar Árboles</CardTitle>
-          <CardDescription>
-            Busque por título, semilla o bibliografía
-          </CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <CardTitle>Buscar y Descargar</CardTitle>
+              <CardDescription>
+                Busque por título, semilla o bibliografía
+              </CardDescription>
+            </div>
+            {selectedTrees.length > 0 && (
+              <Button 
+                onClick={handleDownloadConsolidated}
+                className="bg-green-600 hover:bg-green-700"
+                size="sm"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Descargar {selectedTrees.length} CSV
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="relative">
@@ -223,7 +521,12 @@ const TreeHistory = () => {
             <Input
               placeholder="Buscar árboles..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const {value} = e.target;
+                setSearchTerm(value);
+                // Siempre que cambia el término de búsqueda, volvemos a la página 1
+                setPage(1);
+              }}
               className="pl-10"
             />
           </div>
@@ -233,7 +536,18 @@ const TreeHistory = () => {
       {/* Lista de árboles */}
       <Card>
         <CardHeader>
-          <CardTitle>Árboles Generados ({filteredTrees.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Árboles Generados ({filteredTrees.length})</CardTitle>
+            {filteredTrees.length > 0 && (
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+              >
+                {selectedTrees.length === filteredTrees.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {filteredTrees.length === 0 ? (
@@ -255,20 +569,40 @@ const TreeHistory = () => {
               )}
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <input 
+                        type="checkbox"
+                        checked={selectedTrees.length === filteredTrees.length && filteredTrees.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300"
+                      />
+                    </TableHead>
                     <TableHead>Título</TableHead>
                     <TableHead>Semilla</TableHead>
                     <TableHead>Bibliografía</TableHead>
                     <TableHead>Fecha</TableHead>
+                    <TableHead>Nodos</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredTrees.map((tree) => (
-                    <TableRow key={tree.id}>
+                    <TableRow 
+                      key={tree.id}
+                      className={selectedTrees.includes(tree.id) ? 'bg-blue-50' : ''}
+                    >
+                      <TableCell>
+                        <input 
+                          type="checkbox"
+                          checked={selectedTrees.includes(tree.id)}
+                          onChange={() => toggleTreeSelection(tree.id)}
+                          className="rounded border-gray-300"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <Link 
                           to={`/tree/${tree.id}`}
@@ -294,6 +628,9 @@ const TreeHistory = () => {
                       <TableCell className="text-sm text-gray-600">
                         {formatDate(tree.fecha_generado)}
                       </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {tree.nodes_count ?? 0}
+                      </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -301,34 +638,49 @@ const TreeHistory = () => {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuItem asChild>
                               <Link to={`/tree/${tree.id}`}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 Ver detalles
                               </Link>
                             </DropdownMenuItem>
+
+                            {/* Descargar PDF */}
                             <DropdownMenuItem
-                              onClick={() => handleDownload(tree.id, 'json', tree.title)}
-                              disabled={downloadTreeMutation.isPending}
+                              onClick={() => generatePDFFromTree(tree)}
                             >
-                              <FileJson className="mr-2 h-4 w-4" />
-                              Descargar JSON
+                              <FileDown className="mr-2 h-4 w-4 text-red-500" />
+                              <span>Descargar PDF</span>
                             </DropdownMenuItem>
+
+                            {/* Descargar CSV */}
                             <DropdownMenuItem
-                              onClick={() => handleDownload(tree.id, 'pdf', tree.title)}
-                              disabled={downloadTreeMutation.isPending}
+                              onClick={() => generateCSVFromTree(tree)}
                             >
-                              <FileText className="mr-2 h-4 w-4" />
-                              Descargar PDF
+                              <Sheet className="mr-2 h-4 w-4 text-green-500" />
+                              <span>Descargar CSV</span>
                             </DropdownMenuItem>
+
+                            {/* Descargar JSON */}
+                            <DropdownMenuItem
+                              onClick={() => downloadJSON(tree)}
+                            >
+                              <FileJson className="mr-2 h-4 w-4 text-blue-500" />
+                              <span>Descargar JSON</span>
+                            </DropdownMenuItem>
+
+                            {/* Separador */}
+                            <div className="my-1 border-t border-gray-200" />
+
+                            {/* Eliminar */}
                             <DropdownMenuItem
                               onClick={() => handleDelete(tree.id, tree.title)}
                               disabled={deleteTreeMutation.isPending}
-                              className="text-red-600"
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Eliminar
+                              <span>Eliminar</span>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -341,9 +693,50 @@ const TreeHistory = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex justify-between items-center text-sm">
+          <span>
+            Página {page} de {totalPages} (total: {totalTrees})
+          </span>
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Info de descarga */}
+      {filteredTrees.length > 0 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <Zap className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-900">
+                <p className="font-semibold mb-1">💡 Consejo: Descarga en Múltiples Formatos</p>
+                <p>Cada árbol se puede descargar como PDF (para imprimir), CSV (para Excel), o JSON (datos completos).</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
 
 export default TreeHistory;
-

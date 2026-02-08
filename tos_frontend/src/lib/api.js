@@ -60,70 +60,85 @@ api.interceptors.response.use(
   }
 );
 
-// ===== API DE AUTENTICACIÓN (EXISTENTE + NUEVOS) =====
+// ===== API DE AUTENTICACIÓN =====
 export const authAPI = {
   register: (userData) => api.post('/auth/register/', userData),
   login: (credentials) => api.post('/auth/login/', credentials),
-  logout: () => api.post('/auth/logout/'),  // NUEVO
+  logout: () => api.post('/auth/logout/'),
   forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
   resetPassword: (data) => api.post('/auth/reset-password/', data),
-  getCurrentUser: () => api.get('/auth/user/'),  // NUEVO
+  getCurrentUser: () => api.get('/auth/user/'),
   refreshToken: (refreshToken) => api.post('/auth/refresh-token/', { refresh: refreshToken }),
 };
 
-// ===== API DE INVITACIONES (NUEVO) =====
+// ===== API DE INVITACIONES =====
 export const invitationsAPI = {
-  // Verificar token de invitación antes del registro
   verifyInvitation: (token) => api.post('/invitations/validate/', { token }),
-  
-  // Registrar usuario con invitación
   registerWithInvitation: (userData) => api.post('/register/', userData),
 };
 
-// ===== API DE SOLICITUDES DE ADMINISTRADOR (NUEVO) =====
-export const adminRequestAPI = {
-  // Enviar solicitud para ser administrador
-  submitRequest: (requestData) => api.post('/admin-requests/', requestData),
-};
-
-// ===== API COMPLETA DE ADMINISTRACIÓN (NUEVO) =====
+// ===== API DE SOLICITUDES DE ADMINISTRADOR =====
 export const adminAPI = {
   // ===== ESTADÍSTICAS DEL DASHBOARD =====
-  // Añadimos .then(res => res.data) para que React Query reciba el JSON directamente
-  getStats: () => api.get('auth/admin/stats/').then(res => res.data),
+  getStats: () => api.get('/auth/admin/stats/').then(res => res.data),
   
   // ===== GESTIÓN DE USUARIOS =====
-  getUsers: (params) => api.get('auth/admin/users/', { params }).then(res => res.data),
+  getUsers: (params = {}) => api.get('/auth/admin/users/', { params }).then(res => res.data),
+  getRecentActivity: (params = {}) => api.get('/auth/admin/activity/', { params }).then(res => res.data),
+  getUserById: (id) => api.get(`/auth/admin/users/${id}/`).then(res => res.data),
+  updateUser: (id, data) => api.put(`/auth/admin/users/${id}/`, data).then(res => res.data),
+  deleteUser: (id) => api.delete(`/auth/admin/users/${id}/`).then(res => res.data),
   
-  // Corregido: Si no pasas params, enviamos un objeto vacío para evitar el error [object Object] en la URL
-  getRecentActivity: (params = {}) => api.get('auth/admin/activity/', { params }).then(res => res.data),
-  
-  getUserById: (id) => api.get(`auth/admin/users/${id}/`).then(res => res.data),
-  updateUser: (id, data) => api.patch(`auth/admin/users/${id}/`, data).then(res => res.data),
-  deleteUser: (id) => api.delete(`auth/admin/users/${id}/`).then(res => res.data),
-  
-  // Cambiar rol de usuario
-  changeUserRole: (id, role) => api.patch(`auth/admin/users/${id}/role/`, { role }).then(res => res.data),
-  
-  // Cambiar estado de usuario
-  changeUserState: (id, state) => api.patch(`auth/admin/users/${id}/state/`, { state }).then(res => res.data),
+  // Activar y suspender usuarios con los endpoints correctos
+  activateUser: (id) => api.post(`/auth/admin/users/${id}/activate/`).then(res => res.data),
+  suspendUser: (id) => api.post(`/auth/admin/users/${id}/suspend/`).then(res => res.data),
   
   // ===== GESTIÓN DE INVITACIONES =====
-  getInvitations: (params) => api.get('auth/admin/invitations/', { params }).then(res => res.data),
-  createInvitation: (data) => api.post('auth/admin/invitations/', data).then(res => res.data),
-  revokeInvitation: (id) => api.delete(`auth/admin/invitations/${id}/`).then(res => res.data),
-  copyInvitationToken: (id) => api.get(`auth/admin/invitations/${id}/token/`).then(res => res.data),
+  // getInvitations - asegurar que retorna array
+  getInvitations: (params = {}) => 
+    api.get('/auth/admin/invitations/', { params }).then(res => {
+      // Si el servidor retorna { invitations: [...] }, extraer el array
+      if (res.data?.invitations) {
+        return res.data.invitations;
+      }
+      // Si retorna directamente un array, usarlo así
+      if (Array.isArray(res.data)) {
+        return res.data;
+      }
+      // Si retorna un objeto con data, usar eso
+      if (res.data?.data) {
+        return res.data.data;
+      }
+      // Fallback: retornar el objeto completo para debugging
+      return res.data;
+    }),
+  
+  // createInvitation
+  createInvitation: (data) => 
+    api.post('/auth/admin/invitations/', data).then(res => res.data),
+  
+  revokeInvitation: (id) => 
+    api.delete(`/auth/admin/invitations/${id}/`).then(res => res.data),
+  
+  copyInvitationToken: (id) => 
+    api.get(`/auth/admin/invitations/${id}/token/`).then(res => res.data),
   
   // ===== GESTIÓN DE SOLICITUDES DE ADMIN =====
-  getAdminRequests: (params) => api.get('auth/admin/requests/', { params }).then(res => res.data),
-  reviewRequest: (id, data) => api.patch(`auth/admin/requests/${id}/review/`, data).then(res => res.data),
+  getAdminRequests: (params = {}) => 
+    api.get('/auth/admin/requests/', { params }).then(res => res.data),
+  
+  reviewRequest: (id, data) => 
+    api.patch(`/auth/admin/requests/${id}/review/`, data).then(res => res.data),
   
   // ===== CONFIGURACIONES DEL SISTEMA =====
-  getSettings: () => api.get('auth/admin/settings/').then(res => res.data),
-  updateSettings: (data) => api.patch('auth/admin/settings/', data).then(res => res.data),
+  getSettings: () => 
+    api.get('/auth/admin/settings/').then(res => res.data),
+  
+  updateSettings: (data) => 
+    api.patch('/auth/admin/settings/', data).then(res => res.data),
 };
 
-// ===== API DE BIBLIOGRAFÍA (EXISTENTE) =====
+// ===== API DE BIBLIOGRAFÍA =====
 export const bibliographyAPI = {
   list: () => api.get('/bibliography/list/'),
   upload: (formData) => api.post('/bibliography/upload/', formData, {
@@ -137,10 +152,13 @@ export const bibliographyAPI = {
   delete: (id) => api.delete(`/bibliography/delete/${id}/`),
 };
 
-// ===== API DE ÁRBOLES (EXISTENTE) =====
+// ===== API DE ÁRBOLES =====
 export const treeAPI = {
   generate: (data) => api.post('/tree/generate/', data),
-  history: () => api.get('/tree/history/'),
+
+  // Historial paginado con parámetros opcionales (page, page_size, search)
+  history: (params = {}) => api.get('/tree/history/', { params }),
+
   detail: (id) => api.get(`/tree/${id}/`),
   download: (id, format) => api.get(`/tree/${id}/download/${format}/`, {
     responseType: 'blob',

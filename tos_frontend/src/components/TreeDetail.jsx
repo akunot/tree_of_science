@@ -61,7 +61,7 @@ const TreeDetail = () => {
       id: node.id || `node-${idx}`,
       hasExternalLink: !!(node.url || node.doi || node.pmid || node.arxiv_id),
     }));
-  }, [tree?.arbol_json?.nodes?.length]);
+  }, [tree?.arbol_json?.nodes]);
 
   const containerRefCallback = useCallback((element) => {
     setContainerElement(element);
@@ -119,52 +119,81 @@ const TreeDetail = () => {
   }, [containerElement, isInitialized, measureDimensions]);
 
   // ========== POSICIONAMIENTO RADIAL (FASE 1) ==========
-  const getRadialPosition = useCallback((node, nodeIndex, group, containerWidth, containerHeight) => {
-    // Dividir nodos por grupo
-    const rootNodes = processedNodes.filter(n => n.group === 'root');
-    const trunkNodes = processedNodes.filter(n => n.group === 'trunk');
-    const leafNodes = processedNodes.filter(n => n.group === 'leaf');
-    
-    const centerX = containerWidth / 2;
-    const centerY = containerHeight / 2;
-    
-    // Configuración por grupo
-    if (group === 'root') {
-      // RAÍCES: Círculo amplio ABAJO
-      const index = rootNodes.findIndex(n => n.id === node.id);
-      const angle = (index / Math.max(rootNodes.length, 1)) * Math.PI * 2;
-      const radius = containerWidth * 0.35; // Radio amplio
-      const yOffset = containerHeight * 0.72; // Abajo
-      
-      return {
-        x: centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
-        y: yOffset + Math.sin(angle) * (radius * 0.25) + (Math.random() - 0.5) * 15
-      };
-    } 
-    else if (group === 'trunk') {
-      // TRONCO: Círculo PEQUEÑO en CENTRO
-      const index = trunkNodes.findIndex(n => n.id === node.id);
-      const angle = (index / Math.max(trunkNodes.length, 1)) * Math.PI * 2;
-      const radius = containerWidth * 0.12; // Radio pequeño
-      
-      return {
-        x: centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 15,
-        y: centerY + Math.sin(angle) * radius + (Math.random() - 0.5) * 15
-      };
-    } 
-    else {
-      // HOJAS: Círculo AMPLIO ARRIBA
-      const index = leafNodes.findIndex(n => n.id === node.id);
-      const angle = (index / Math.max(leafNodes.length, 1)) * Math.PI * 2;
-      const radius = containerWidth * 0.38; // Radio muy amplio
-      const yOffset = containerHeight * 0.28; // Arriba
-      
-      return {
-        x: centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
-        y: yOffset + Math.sin(angle) * (radius * 0.22) + (Math.random() - 0.5) * 15
-      };
-    }
+   const groupedNodes = useMemo(() => {
+    const roots = [];
+    const trunks = [];
+    const leaves = [];
+    (processedNodes || []).forEach((n) => {
+      if (n.group === 'root') roots.push(n);
+      else if (n.group === 'trunk') trunks.push(n);
+      else leaves.push(n);
+    });
+    return { roots, trunks, leaves };
   }, [processedNodes]);
+
+  const getRadialPosition = useCallback(
+    (node, nodeIndex, group, containerWidth, containerHeight) => {
+      const { roots, trunks, leaves } = groupedNodes;
+      const centerX = containerWidth / 2;
+      const centerY = containerHeight / 2;
+
+      if (group === 'root') {
+        // RAÍCES: banda inferior (horizontal), ligeramente curvada
+        const index = roots.findIndex((n) => n.id === node.id);
+        const count = Math.max(roots.length, 1);
+        const span = containerWidth * 0.7; // ancho ocupado
+        const startX = centerX - span / 2;
+        const x =
+          startX +
+          (span / Math.max(count - 1, 1)) * index +
+          (Math.random() - 0.5) * 10;
+        const baseY = containerHeight * 0.78;
+        const y =
+          baseY +
+          Math.sin((index / count) * Math.PI) * (containerHeight * 0.03) +
+          (Math.random() - 0.5) * 6;
+
+        return { x, y };
+      }
+
+      if (group === 'trunk') {
+        // TRONCO: columna vertical en el centro
+        const index = trunks.findIndex((n) => n.id === node.id);
+        const count = Math.max(trunks.length, 1);
+        const spanY = containerHeight * 0.35; // altura del tronco
+        const startY = centerY - spanY / 2;
+        const y =
+          startY +
+          (spanY / Math.max(count - 1, 1)) * index +
+          (Math.random() - 0.5) * 10;
+        const baseX = centerX;
+        const x =
+          baseX +
+          Math.sin((index / count) * Math.PI * 2) * (containerWidth * 0.04) +
+          (Math.random() - 0.5) * 6;
+
+        return { x, y };
+      }
+
+      // HOJAS: banda superior (horizontal), más ancha
+      const index = leaves.findIndex((n) => n.id === node.id);
+      const count = Math.max(leaves.length, 1);
+      const span = containerWidth * 0.8;
+      const startX = centerX - span / 2;
+      const x =
+        startX +
+        (span / Math.max(count - 1, 1)) * index +
+        (Math.random() - 0.5) * 12;
+      const baseY = containerHeight * 0.22;
+      const y =
+        baseY -
+        Math.cos((index / count) * Math.PI) * (containerHeight * 0.04) +
+        (Math.random() - 0.5) * 6;
+
+      return { x, y };
+    },
+    [groupedNodes]
+  );
 
   // ========== LAYOUT D3: POSICIONAMIENTO INICIAL ==========
   const treeLayout = useMemo(() => {
@@ -361,16 +390,18 @@ const TreeDetail = () => {
       )
       
       // ========== FASE 3: FUERZAS Y DÉBILES (Mantiene forma) ==========
-      .force("y", forceY(d => {
-        if (d.group === 'root') {
-          return dimensions.height * 0.72;
-        } else if (d.group === 'trunk') {
-          return dimensions.height / 2;
-        } else {
-          return dimensions.height * 0.28;
-        }
-      }).strength(0.04))  // DÉBIL (solo mantiene, no controla)
-      
+      .force(
+        "y",
+        forceY((d) => {
+          if (d.group === 'root') {
+            return dimensions.height * 0.78;
+          } else if (d.group === 'trunk') {
+            return dimensions.height / 2;
+          } else {
+            return dimensions.height * 0.22;
+          }
+        }).strength(0.06) // un poco más fuerte para “pegar” las bandas
+      )
       .stop();
 
     // Ejecutar simulación balanceada
@@ -662,8 +693,11 @@ const TreeDetail = () => {
 
   if (error || !tree) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-red-600">Error cargando árbol: {error?.message}</p>
+      <div className="p-8 text-center space-y-4">
+        <p className="text-red-600">Error cargando árbol: {error?.message || 'No se encontró el árbol.'}</p>
+        <Button asChild variant="outline">
+          <Link to="/history">Volver al historial</Link>
+        </Button>
       </div>
     );
   }
@@ -705,6 +739,8 @@ const TreeDetail = () => {
               <File className="h-4 w-4" />
               <span className="hidden sm:inline">CSV</span>
             </Button>
+
+            
           </div>
         </div>
 

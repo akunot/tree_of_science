@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { TreePine, LayoutDashboard, Users, Mail, UserPlus, Settings, LogOut, Menu, X } from 'lucide-react';
@@ -7,6 +7,7 @@ import { TreePine, LayoutDashboard, Users, Mail, UserPlus, Settings, LogOut, Men
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
@@ -17,9 +18,9 @@ const AdminLayout = ({ children }) => {
     { name: 'Configuraciones', href: '/admin/settings', icon: Settings, current: location.pathname === '/admin/settings' },
   ];
 
-  const handleLogout = () => {
-    logout();
-    window.location.href = '/';
+  const handleLogout = async () => {
+    await logout();
+    navigate('/', { replace: true });
   };
 
   return (

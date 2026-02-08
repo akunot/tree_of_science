@@ -150,11 +150,10 @@ export const AuthProvider = ({ children }) => {
     updateUser,
     refreshUserData,
     
-    // Verificaciones de estado - ✅ USANDO FUNCIONES IMPORTADAS
-    isAuthenticated: !!user && isAuthenticated(),
+    isAuthenticated: !!user,
     isAdmin: isAdmin(),
     canAccessAdmin: canAccessAdminPanel(),
-    isActive: isUserActive(), // ✅ CORRECCIÓN PRINCIPAL
+    isActive: isUserActive(), 
     isPending: isUserPending(),
     isSuspended: isUserSuspended(),
     

@@ -34,7 +34,7 @@ export const getUser = () => {
 
 export const getUserRole = () => {
   const user = getUser();
-  if (user?.is_admin === true) return 'ADMIN';
+  if (user?.is_staff === true) return 'ADMIN';
   return user?.role || 'USER';
 };
 
@@ -47,7 +47,7 @@ export const getUserState = () => {
 
 export const isAdmin = () => {
   const user = getUser();
-  const result = user?.is_admin === true || getUserRole() === 'ADMIN';
+  const result = user?.is_staff === true || getUserRole() === 'ADMIN';
   return result;
 };
 
@@ -155,7 +155,7 @@ export const shouldRedirectToLogin = () => {
 
 export const shouldRedirectToAdmin = () => {
   const user = getUser();
-  return user?.is_admin === true && isUserActive();
+  return user?.is_staff === true && isUserActive();
 };
 
 export const getAuthRedirectPath = () => {

@@ -29,7 +29,7 @@ const Login = () => {
       
       // ✅ Redirigir según el rol
       const user = response.data.user;
-      if (user.is_admin) {
+      if (user.is_staff) {
         navigate('/admin');
       } else {
         navigate('/dashboard');
