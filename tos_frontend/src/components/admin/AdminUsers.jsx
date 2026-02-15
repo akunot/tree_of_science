@@ -40,6 +40,11 @@ const UserCard = ({
   handleSaveUser,
   handleCancelEdit,
   updateEditField,
+  onDeleteUser,
+  isDeleting,
+  onSuspendUser,
+  onActivateUser,
+  isTogglingStatus,
 }) => (
   <div className="border rounded-lg p-4">
     {editingUserId === user.id && editError && (
@@ -97,22 +102,7 @@ const UserCard = ({
       <div className="flex flex-col gap-3 ml-4">
         {editingUserId === user.id && userToEdit ? (
           <>
-            <div className="grid grid-cols-1 gap-2">
-              <Select
-                value={userToEdit.user_state}
-                onValueChange={(value) => updateEditField('user_state', value)}
-                disabled={updateUserMutation.isPending}
-              >
-                <SelectTrigger className="w-full md:w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Activo</SelectItem>
-                  <SelectItem value="PENDING">Pendiente</SelectItem>
-                  <SelectItem value="SUSPENDED">Suspendido</SelectItem>
-                </SelectContent>
-              </Select>
-
+             <div className="grid grid-cols-1 gap-2">
               <Select
                 value={userToEdit.role}
                 onValueChange={(value) => updateEditField('role', value)}
@@ -149,15 +139,51 @@ const UserCard = ({
             </div>
           </>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleEditUser(user)}
-            className="w-full"
-          >
-            <Edit className="h-4 w-4 mr-1" />
-            Editar
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleEditUser(user)}
+              className="w-full"
+            >
+              <Edit className="h-4 w-4 mr-1" />
+              Editar
+            </Button>
+
+            {/* Botón activar / suspender */}
+            {user.user_state === 'SUSPENDED' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-green-600 border-green-200 hover:bg-green-50"
+                onClick={() => onActivateUser && onActivateUser(user.id)}
+                disabled={isTogglingStatus}
+              >
+                Activar
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-yellow-700 border-yellow-200 hover:bg-yellow-50"
+                onClick={() => onSuspendUser && onSuspendUser(user.id)}
+                disabled={isTogglingStatus}
+              >
+                Suspender
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-red-600 border-red-200 hover:bg-red-50"
+              onClick={() => onDeleteUser && onDeleteUser(user.id)}
+              disabled={isDeleting}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </div>
         )}
       </div>
     </div>
@@ -225,6 +251,27 @@ const AdminUsers = () => {
     mutationFn: adminAPI.revokeInvitation,
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-invitations']);
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId) => adminAPI.deleteUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-users']);
+    },
+  });
+
+  const suspendUserMutation = useMutation({
+    mutationFn: (userId) => adminAPI.suspendUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-users']);
+    },
+  });
+
+  const activateUserMutation = useMutation({
+    mutationFn: (userId) => adminAPI.activateUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-users']);
     },
   });
 
@@ -326,7 +373,6 @@ const AdminUsers = () => {
     updateUserMutation.mutate({
       userId: userToEdit.id,
       data: {
-        user_state: userToEdit.user_state,
         is_staff: userToEdit.role === 'administrator',
         first_name: userToEdit.first_name.trim(),
         last_name: userToEdit.last_name.trim()
@@ -649,6 +695,23 @@ const AdminUsers = () => {
                         handleSaveUser={handleSaveUser}
                         handleCancelEdit={handleCancelEdit}
                         updateEditField={updateEditField}
+                        onDeleteUser={(id) => {
+                          if (window.confirm('¿Está seguro de eliminar este usuario?')) {
+                            deleteUserMutation.mutate(id);
+                          }
+                        }}
+                        isDeleting={deleteUserMutation.isPending}
+                        onSuspendUser={(id) => {
+                          if (window.confirm('¿Suspender este usuario?')) {
+                            suspendUserMutation.mutate(id);
+                          }
+                        }}
+                        onActivateUser={(id) => {
+                          if (window.confirm('¿Activar este usuario?')) {
+                            activateUserMutation.mutate(id);
+                          }
+                        }}
+                        isTogglingStatus={suspendUserMutation.isPending || activateUserMutation.isPending}
                       />
                     ))
                   ) : (

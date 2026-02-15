@@ -9,8 +9,7 @@ export const isTokenValid = (token) => {
   try {
     const decoded = jwtDecode(token);
     const currentTime = Date.now() / 1000;
-    const isValid = decoded.exp > currentTime;
-    return isValid;
+    return decoded.exp > currentTime;
   } catch (error) {
     console.error('❌ [isTokenValid] Error validating token:', error);
     return false;
@@ -47,24 +46,20 @@ export const getUserState = () => {
 
 export const isAdmin = () => {
   const user = getUser();
-  const result = user?.is_staff === true || getUserRole() === 'ADMIN';
-  return result;
+  return user?.is_staff === true || getUserRole() === 'ADMIN';
 };
 
 export const isUserActive = () => {
   const state = getUserState();
   const activeStates = ['ACTIVE', 'Activo', 'ACTIVATED', 'active'];
-  const result = activeStates.includes(state);
-  return result;
+  return activeStates.includes(state);
 };
 
 export const canAccessAdminPanel = () => {
   const user = getUser();
   const adminCheck = isAdmin();
   const activeCheck = isUserActive();
-  const result = adminCheck && activeCheck;
-  
-  return result;
+  return adminCheck && activeCheck;
 };
 
 // ===== FUNCIONES DE AUTENTICACIÓN =====
@@ -88,9 +83,7 @@ export const isAuthenticated = () => {
   // Verificar que el usuario esté activo
   const userActive = isUserActive();
   
-  const result = tokenValid && userActive;
-  
-  return result;
+  return tokenValid && userActive;
 };
 
 export const hasValidSession = () => {
@@ -128,13 +121,13 @@ export const updateUserData = (userData) => {
 };
 
 
-export const clearAuthData = () => {
+export function clearAuthData() {
   try {
-    localStorage.removeItem('access_token');C
+    localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
-  } catch (error) {
-    console.error('Error clearing auth data:', error);
+  } catch (e) {
+    console.error('Error clearing auth data:', e);
   }
 };
 

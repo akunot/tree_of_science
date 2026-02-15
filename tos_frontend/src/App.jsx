@@ -16,6 +16,8 @@ import BibliographyManager from './components/BibliographyManager';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import Layout from './components/Layout';
+import VerifyEmail from './components/VerifyEmail.jsx';
+import AccountSuspended from './components/AccountSuspended.jsx';
 
 // ===== NUEVOS COMPONENTES DEL SISTEMA DE ADMINISTRADOR =====
 
@@ -152,8 +154,7 @@ const PublicRoute = ({ children }) => {
     );
   }
   
-  return !isAuthenticated ? children : <Navigate to="/dashboard" replace />;
-};
+return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;};
 
 // Componente para manejo de errores
 const ErrorBoundary = ({ children }) => {
@@ -231,6 +232,10 @@ function App() {
                     <ResetPassword />
                   </PublicRoute>
                 } />
+
+                <Route path="/verify-email" element={<VerifyEmail />} />
+
+                <Route path="/account-suspended" element={<AccountSuspended />} />
                 
                 {/* ===== RUTAS PROTEGIDAS PARA USUARIOS REGULARES ===== */}
                 <Route path="/dashboard" element={

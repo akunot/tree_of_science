@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { useAuth } from '../hooks/useAuth'; // ✅ Importar el hook
+import { useAuth } from '../hooks/useAuth';
 import { authAPI } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,17 +18,17 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   
-  const { login } = useAuth(); // ✅ Obtener la función login del hook
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const loginMutation = useMutation({
     mutationFn: authAPI.login,
     onSuccess: (response) => {
-      // ✅ Usar la función login del hook (ya corregida)
+      // Usar la función login del hook
       login(response.data);
-      
-      // ✅ Redirigir según el rol
-      const user = response.data.user;
+
+      // Redirigir según el rol
+      const {user} = response.data;
       if (user.is_staff) {
         navigate('/admin');
       } else {
@@ -36,10 +36,24 @@ const Login = () => {
       }
     },
     onError: (error) => {
-      setError(
+      const backendError =
         error.response?.data?.error ||
         error.response?.data?.non_field_errors?.[0] ||
         error.response?.data?.detail ||
+        '';
+
+      // 1) Cuenta no activa (suspendida / pendiente) -> pantalla especial
+      if (
+        error.response?.status === 403 &&
+        backendError === 'Cuenta no activa. Contacte al administrador.'
+      ) {
+        navigate('/account-suspended', { replace: true });
+        return;
+      }
+
+      // 2) Otros casos (no verificada, invitación no aceptada, etc.) -> mostrar en el login
+      setError(
+        backendError ||
         'Error al iniciar sesión. Verifique sus credenciales.'
       );
     },

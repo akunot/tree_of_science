@@ -1,3 +1,4 @@
+import contextlib
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
@@ -29,7 +30,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         invitation_token = validated_data.pop('invitation_token', None)
-        
+
         # Crear usuario con tu estructura actual
         user = User.objects.create_user(
             username=validated_data['email'],  # Usar email como username
@@ -38,10 +39,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name']
         )
-        
+
         # Si hay token de invitación, manejarlo
         if invitation_token:
-            try:
+            with contextlib.suppress(Invitation.DoesNotExist):
                 invitation = Invitation.objects.get(
                     token=invitation_token,
                     state='PENDING',
@@ -53,9 +54,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     user.user_state = 'INVITED'
                     user.generate_verification_token()
                     user.save()
-            except Invitation.DoesNotExist:
-                pass  # Ignorar si la invitación no existe
-        
         return user
 
 
@@ -67,39 +65,24 @@ class UserLoginSerializer(serializers.Serializer):
         email = attrs.get('email')
         password = attrs.get('password')
 
-        if email and password:
-            try:
-                user = User.objects.get(email=email)
-                
-                # Verificar que la contraseña sea correcta
-                if not user.check_password(password):
-                    raise serializers.ValidationError('Credenciales inválidas.')
-                
-                # Verificar si la cuenta está bloqueada
-                if user.is_locked():
-                    raise serializers.ValidationError('Cuenta bloqueada temporalmente. Intente más tarde.')
-                
-                # VERIFICACIONES ADICIONALES PARA TU MODELO
-                
-                # 1. Verificar que la cuenta esté VERIFICADA
-                if hasattr(user, 'is_verified') and not user.is_verified:
-                    raise serializers.ValidationError('Cuenta no verificada. Revise su correo electrónico para verificar su cuenta.')
-                
-                # 2. Verificar que la invitación haya sido ACEPTADA
-                if hasattr(user, 'invitation_accepted') and not user.invitation_accepted:
-                    raise serializers.ValidationError('Debe aceptar la invitación antes de iniciar sesión.')
-                
-                # 3. Verificar estado de la cuenta
-                if user.user_state not in ['ACTIVE', 'INVITED']:
-                    raise serializers.ValidationError('Cuenta no activa. Contacte al administrador.')
-                
-                attrs['user'] = user
-                return attrs
-                
-            except User.DoesNotExist:
-                raise serializers.ValidationError('Credenciales inválidas.')
-        else:
+        if not email or not password:
             raise serializers.ValidationError('Debe proporcionar email y contraseña.')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist as e:
+            raise serializers.ValidationError('Credenciales inválidas.') from e
+
+        # Verificar que la contraseña sea correcta
+        if not user.check_password(password):
+            raise serializers.ValidationError('Credenciales inválidas.')
+
+        # (Opcional) dejar aquí solo el bloqueo duro; el resto lo maneja la vista
+        if hasattr(user, 'is_locked') and callable(user.is_locked) and user.is_locked():
+            raise serializers.ValidationError('Cuenta bloqueada temporalmente. Intente más tarde.')
+
+        attrs['user'] = user
+        return attrs
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -142,13 +125,10 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     
     def validate_email(self, value):
         # Verificar que el email exista (pero no revelarlo en el error)
-        try:
+        with contextlib.suppress(User.DoesNotExist):
             user = User.objects.get(email=value)
             if not user.is_active or user.user_state != 'ACTIVE':
                 raise serializers.ValidationError('No se puede recuperar la contraseña para esta cuenta.')
-        except User.DoesNotExist:
-            # No revelar si el email existe o no
-            pass
         return value
 
 
@@ -257,8 +237,8 @@ class EmailVerificationSerializer(serializers.Serializer):
             user = User.objects.get(verification_token=value)
             if user.is_verified:
                 raise serializers.ValidationError('El email ya ha sido verificado.')
-        except User.DoesNotExist:
-            raise serializers.ValidationError('Token de verificación inválido.')
+        except User.DoesNotExist as e:
+            raise serializers.ValidationError('Token de verificación inválido.') from e
         return value
 
 

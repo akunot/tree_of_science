@@ -204,7 +204,7 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# Email configuration (para recuperación de contraseña)
+# Email configuration (para recuperación de contraseña y envío de invitaciones)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Para desarrollo
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587

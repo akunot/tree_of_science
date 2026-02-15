@@ -35,9 +35,9 @@ const Layout = ({ children }) => {
     ...(user?.is_staff || user?.is_active ? [{ name: 'Panel Admin', href: '/admin/', icon: User }] : [])
   ];
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
   };
 
   const getUserInitials = (user) => {

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Crear instancia de axios
 const api = axios.create({
@@ -60,22 +60,29 @@ api.interceptors.response.use(
   }
 );
 
-// ===== API DE AUTENTICACIÓN =====
-export const authAPI = {
-  register: (userData) => api.post('/auth/register/', userData),
-  login: (credentials) => api.post('/auth/login/', credentials),
-  logout: () => api.post('/auth/logout/'),
-  forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
-  resetPassword: (data) => api.post('/auth/reset-password/', data),
-  getCurrentUser: () => api.get('/auth/user/'),
-  refreshToken: (refreshToken) => api.post('/auth/refresh-token/', { refresh: refreshToken }),
-};
+ // ===== API DE AUTENTICACIÓN =====
+ export const authAPI = {
+   register: (userData) => api.post('/auth/register/', userData),
+   login: (credentials) => api.post('/auth/login/', credentials),
+   logout: () => api.post('/auth/logout/'),
+   forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
+   resetPassword: (data) => api.post('/auth/reset-password/', data),
+   getCurrentUser: () => api.get('/auth/user/'),
+   refreshToken: (refreshToken) => api.post('/auth/refresh-token/', { refresh: refreshToken }),
 
-// ===== API DE INVITACIONES =====
-export const invitationsAPI = {
-  verifyInvitation: (token) => api.post('/invitations/validate/', { token }),
-  registerWithInvitation: (userData) => api.post('/register/', userData),
-};
+   // === INVITACIONES (usadas en Register.jsx) ===
+   verifyInvitation: (token) => api.post('/auth/invitations/validate/', { token }),
+   registerWithInvitation: (userData) => api.post('/auth/register/', userData),
+
+   // === VERIFICACIÓN DE EMAIL ===
+   verifyEmail: (token) => api.post('/auth/verify-email/', { token }),
+ };
+
+ // ===== API DE INVITACIONES (si quieres mantenerla) =====
+ export const invitationsAPI = {
+   verifyInvitation: (token) => authAPI.verifyInvitation(token),
+   registerWithInvitation: (userData) => authAPI.registerWithInvitation(userData),
+ };
 
 // ===== API DE SOLICITUDES DE ADMINISTRADOR =====
 export const adminAPI = {
@@ -87,8 +94,8 @@ export const adminAPI = {
   getRecentActivity: (params = {}) => api.get('/auth/admin/activity/', { params }).then(res => res.data),
   getUserById: (id) => api.get(`/auth/admin/users/${id}/`).then(res => res.data),
   updateUser: (id, data) => api.put(`/auth/admin/users/${id}/`, data).then(res => res.data),
-  deleteUser: (id) => api.delete(`/auth/admin/users/${id}/`).then(res => res.data),
-  
+  deleteUser: (id) => api.delete(`/auth/admin/users/${id}/delete/`).then(res => res.data),
+
   // Activar y suspender usuarios con los endpoints correctos
   activateUser: (id) => api.post(`/auth/admin/users/${id}/activate/`).then(res => res.data),
   suspendUser: (id) => api.post(`/auth/admin/users/${id}/suspend/`).then(res => res.data),
@@ -114,11 +121,11 @@ export const adminAPI = {
     }),
   
   // createInvitation
-  createInvitation: (data) => 
-    api.post('/auth/admin/invitations/', data).then(res => res.data),
+  createInvitation: (data) =>
+    api.post('/auth/admin/invitations/create/', data).then(res => res.data),
   
   revokeInvitation: (id) => 
-    api.delete(`/auth/admin/invitations/${id}/`).then(res => res.data),
+    api.post(`/auth/admin/invitations/${id}/`).then(res => res.data),
   
   copyInvitationToken: (id) => 
     api.get(`/auth/admin/invitations/${id}/token/`).then(res => res.data),
