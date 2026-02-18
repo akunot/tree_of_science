@@ -1,154 +1,240 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { TreePine, LayoutDashboard, Users, Mail, UserPlus, Settings, LogOut, Menu, X } from 'lucide-react';
+import {
+  TreePine,
+  LayoutDashboard,
+  Users,
+  Mail,
+  UserPlus,
+  Settings,
+  LogOut,
+  Search,
+  Download,
+  ChevronRight,
+} from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, current: location.pathname === '/admin' },
     { name: 'Usuarios', href: '/admin/users', icon: Users, current: location.pathname === '/admin/users' },
-    { name: 'Invitaciones', href: '/admin/invitations', icon: Mail, current: location.pathname === '/admin/invitations' },
+    { name: 'Invitaciones', href: '/admin/invitations', icon: Mail, current: location.pathname === '/admin/invitations'},
     { name: 'Solicitudes Admin', href: '/admin/requests', icon: UserPlus, current: location.pathname === '/admin/requests' },
-    { name: 'Configuraciones', href: '/admin/settings', icon: Settings, current: location.pathname === '/admin/settings' },
+    { name: 'Configuración', href: '/admin/settings', icon: Settings, current: location.pathname === '/admin/settings' },
   ];
+
+  const pageTitles = {
+    '/admin': 'Dashboard',
+    '/admin/users': 'Usuarios',
+    '/admin/invitations': 'Invitaciones',
+    '/admin/requests': 'Solicitudes Admin',
+    '/admin/settings': 'Configuración',
+  };
+
+  const currentPageTitle = pageTitles[location.pathname] || 'Panel';
 
   const handleLogout = async () => {
     await logout();
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Sidebar para móvil */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-          <div className="relative flex flex-col w-full max-w-xs bg-white h-full">
-            <div className="absolute top-0 right-0 p-2">
-              <button
-                type="button"
-                className="flex items-center justify-center w-10 h-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-                onClick={() => setSidebarOpen(false)}
+    <div
+      className="flex h-screen w-screen overflow-hidden"
+      style={{
+        backgroundColor: "#0f1513",
+      }}
+    >
+      {/* Sidebar - Persistente */}
+      <motion.aside
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3 }}
+        className="w-72 flex flex-col border-r border-[#19c3e6]/10 flex-shrink-0 h-full"
+        style={{
+          background: "rgba(16, 46, 26, 0.95)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        {/* Logo Section */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="p-6 flex items-center gap-3"
+        >
+          <Link to="/admin" className="flex items-center gap-3 hover:opacity-80 transition-opacity flex-1">
+            <div className="w-10 h-10 rounded-lg bg-[#19c3e6] flex items-center justify-center text-[#102e1a] shadow-lg shadow-[#19c3e6]/20 flex-shrink-0">
+              <TreePine className="h-6 w-6 fill-current" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-white font-bold leading-none tracking-tight text-sm">Árbol de la Ciencia</h1>
+              <span className="text-[#19c3e6]/70 text-[10px] font-medium uppercase tracking-widest">Lab Admin</span>
+            </div>
+          </Link>
+        </motion.div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          <div className="text-[#19c3e6]/50 text-[10px] uppercase tracking-widest font-bold px-3 mb-4">
+            Gestión Principal
+          </div>
+
+          {navigation.map((item, idx) => {
+            const Icon = item.icon;
+            return (
+              <motion.div
+                key={item.name}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 + idx * 0.05 }}
               >
-                <X className="w-6 h-6 text-white" />
-              </button>
+                <Link
+                  to={item.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative ${
+                    item.current
+                      ? 'bg-[#19c3e6] text-[#102e1a] font-semibold shadow-lg shadow-[#19c3e6]/20'
+                      : 'text-[#f5f5f0]/70 hover:text-[#f5f5f0] hover:bg-[#19c3e6]/5'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${item.current ? 'text-[#102e1a]' : 'group-hover:text-[#19c3e6]'}`} />
+                  <span className="text-sm flex-1">{item.name}</span>
+                  {item.badge && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex-shrink-0"
+                    >
+                      {item.badge}
+                    </motion.span>
+                  )}
+                </Link>
+              </motion.div>
+            );
+          })}
+        </nav>
+
+        {/* User Profile Section */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="p-6 border-t border-[#19c3e6]/10 bg-black/20"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#19c3e6]/20 border border-[#19c3e6]/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {user?.first_name ? (
+                <span className="text-xs font-bold text-[#19c3e6] uppercase">
+                  {user.first_name.charAt(0)}{user.last_name?.charAt(0) || 'A'}
+                </span>
+              ) : (
+                <Users className="h-4 w-4 text-[#19c3e6]" />
+              )}
             </div>
-            <SidebarContent navigation={navigation} currentPath={location.pathname} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[#f5f5f0] text-xs font-bold truncate">{user?.first_name} {user?.last_name}</p>
+              <p className="text-[#19c3e6]/60 text-[10px] truncate">Administrador</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleLogout}
+              className="p-1.5 hover:bg-[#19c3e6]/10 rounded-lg text-[#19c3e6] transition-colors flex-shrink-0"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-4 w-4" />
+            </motion.button>
           </div>
-        </div>
-      )}
+        </motion.div>
+      </motion.aside>
 
-      {/* Sidebar para desktop */}
-      <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0">
-        <div className="flex flex-col flex-grow bg-gray-800 overflow-y-auto">
-          <SidebarContent navigation={navigation} currentPath={location.pathname} />
-        </div>
-      </div>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
+        <motion.header
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.3 }}
+          className="h-20 flex-shrink-0 border-b border-[#19c3e6]/10 z-10 px-8 flex items-center justify-between"
+          style={{
+            background: "rgba(15, 21, 19, 0.8)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          {/* Left: Title & Breadcrumb */}
+          <div className="flex items-center gap-6 flex-1">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h2 className="text-2xl font-black text-[#f5f5f0] tracking-tight">
+                {currentPageTitle}
+              </h2>
+            </motion.div>
 
-      {/* Contenido principal */}
-      <div className="lg:pl-64 flex flex-col flex-1">
-        {/* Header */}
-        <div className="relative z-10 flex-shrink-0 flex h-16 bg-white shadow">
-          <button
-            type="button"
-            className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 lg:hidden"
-            onClick={() => setSidebarOpen(true)}
+            <div className="h-6 w-px bg-[#19c3e6]/20"></div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex items-center gap-2 text-xs font-medium text-[#f5f5f0]/60 uppercase tracking-widest"
+            >
+              <Link to="/admin" className="hover:text-[#19c3e6] transition-colors">
+                Admin
+              </Link>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-[#19c3e6]">
+                {currentPageTitle}
+              </span>
+            </motion.div>
+          </div>
+
+          {/* Right: Search & Actions */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="flex items-center gap-4"
           >
-            <Menu className="h-6 w-6" />
-          </button>
-          
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex">
-              <div className="w-full flex md:ml-0">
-                <div className="flex items-center">
-                  <h1 className="text-lg font-medium text-gray-900">
-                    Panel de Administración
-                  </h1>
-                </div>
-              </div>
-            </div>
-            
-            <div className="ml-4 flex items-center md:ml-6">
-              <div className="flex items-center space-x-4">
-                <div className="text-sm">
-                  <p className="text-gray-700 font-medium">
-                    {user?.first_name} {user?.last_name}
-                  </p>
-                  <p className="text-gray-500">Administrador</p>
-                </div>
-                <div className="flex space-x-2">
-                  <Link to="/dashboard">
-                    <Button variant="outline" size="sm">
-                      Ver Sitio
-                    </Button>
-                  </Link>
-                  <Button variant="outline" size="sm" onClick={handleLogout}>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Cerrar Sesión
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Contenido de la página */}
-        <main className="flex-1">
-          <div className="py-6">
+            {/* Botón para volver al Dashboard principal */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-black uppercase tracking-widest text-xs transition-all"
+              style={{
+                boxShadow: '0 0 20px rgba(25, 195, 230, 0.3)',
+              }}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Ir al Dashboard</span>
+            </motion.button>
+          </motion.div>
+        </motion.header>
+
+        {/* Content Area */}
+        <motion.main
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className="flex-1 overflow-y-auto relative"
+        >
+          {/* Decorative Background */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#19c3e6]/5 blur-[120px] rounded-full -mr-64 -mt-64 pointer-events-none"></div>
+
+          <div className="p-8 max-w-7xl mx-auto relative z-10">
             {children}
           </div>
-        </main>
+        </motion.main>
       </div>
-    </div>
-  );
-};
-
-const SidebarContent = ({ navigation, currentPath }) => {
-  return (
-    <div className="flex flex-col h-0 flex-1 overflow-y-auto bg-gray-800">
-      {/* Logo */}
-      <div className="flex items-center flex-shrink-0 px-4 py-4">
-        <div className="flex items-center">
-          <div className="p-2 bg-blue-600 rounded-lg">
-            <TreePine className="h-6 w-6 text-white" />
-          </div>
-          <div className="ml-3">
-            <p className="text-white text-sm font-medium">Árbol de la Ciencia</p>
-            <p className="text-gray-400 text-xs">Panel Admin</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Navegación */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
-        {navigation.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={`${
-                item.current
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-              } group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200`}
-            >
-              <Icon
-                className={`${
-                  item.current ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'
-                } mr-3 h-5 w-5 flex-shrink-0`}
-              />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLocation } from 'react-router-dom';
+import AdminLayout from './AdminLayout';
 import AdminDashboard from './AdminDashboard';
 import AdminUsers from './AdminUsers';
 import AdminInvitations from './AdminInvitations';
@@ -14,7 +15,7 @@ const AdminPanel = () => {
   // Determinar qué componente mostrar basado en la ruta
   const renderAdminComponent = () => {
     const path = location.pathname;
-    
+
     if (path.includes('/admin/users')) {
       return <AdminUsers />;
     }
@@ -27,14 +28,15 @@ const AdminPanel = () => {
     if (path.includes('/admin/settings')) {
       return <AdminSettings />;
     }
-    
+
+    // Por defecto mostrar dashboard
     return <AdminDashboard />;
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AdminLayout>
       {renderAdminComponent()}
-    </div>
+    </AdminLayout>
   );
 };
 

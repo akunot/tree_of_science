@@ -1,68 +1,372 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+/* ============================================
+   🌿 Tree of Science — Futuristic Dark Theme
+   Paleta: Cian (#19c3e6) + Dark Background
+   Aesthetic: Lab, Organic Growth, Glass-morphism
+   ============================================ */
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    /* Primary Colors */
+    --primary: #19c3e6;
+    --background-light: #f6f8f8;
+    --background-dark: #111e21;
+    --forest: #1a2e05;
+
+    /* Semantic Colors */
+    --primary-rgb: 25, 195, 230;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
   }
-  a:hover {
-    color: #747bff;
+
+  body {
+    @apply bg-background-dark text-slate-100 font-sans antialiased;
+    font-family: 'Space Grotesk', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', sans-serif;
   }
-  button {
-    background-color: #f9f9f9;
+
+  /* Dark mode es el default */
+  html {
+    color-scheme: dark;
   }
+}
+
+/* ============================================
+   Glass-morphism Components
+   ============================================ */
+@layer components {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/5;
+    background: rgba(25, 195, 230, 0.05);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(25, 195, 230, 0.1);
+  }
+
+  .glass-card-hover {
+    @apply glass-card hover:border-primary/30 transition-all;
+  }
+
+  .glass-nav {
+    backdrop-filter: blur(8px);
+    background: rgba(17, 30, 33, 0.8);
+  }
+}
+
+/* ============================================
+   Gradient Utilities
+   ============================================ */
+@layer utilities {
+  .bg-gradient-radial {
+    background: radial-gradient(circle at 50% 50%, rgba(25, 195, 230, 0.15) 0%, rgba(17, 30, 33, 0) 70%);
+  }
+
+  .hero-gradient {
+    background: radial-gradient(circle at 50% 50%, rgba(25, 195, 230, 0.15) 0%, rgba(17, 30, 33, 0) 70%);
+  }
+
+  .text-primary {
+    @apply text-[#19c3e6];
+  }
+
+  .bg-primary {
+    @apply bg-[#19c3e6];
+  }
+
+  .border-primary {
+    @apply border-[#19c3e6];
+  }
+
+  .ring-primary {
+    @apply ring-[#19c3e6];
+  }
+
+  .focus-primary {
+    @apply focus:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:ring-offset-background-dark outline-none transition-all;
+  }
+
+  .glow-primary {
+    @apply shadow-[0_0_20px_rgba(25,195,230,0.3)];
+  }
+
+  .glow-primary-sm {
+    @apply shadow-[0_0_15px_rgba(25,195,230,0.3)];
+  }
+}
+
+/* ============================================
+   Custom Animations
+   ============================================ */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shine {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-glow-pulse {
+    animation: glow-pulse 3s ease-in-out infinite;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.5s ease-out;
+  }
+
+  .animate-shine {
+    animation: shine 3s ease-in-out infinite;
+    background-size: 1000px 100%;
+    background-position: 0 0;
+  }
+}
+
+/* ============================================
+   Button Styles
+   ============================================ */
+@layer components {
+  .btn-primary {
+    @apply px-8 py-4 bg-primary text-background-dark font-bold rounded-lg transition-all hover:scale-105 shadow-[0_0_30px_rgba(25,195,230,0.2)] active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-8 py-4 border border-white/10 font-bold rounded-lg hover:bg-white/5 transition-all text-slate-100 active:bg-white/10;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-sm font-medium hover:text-primary transition-colors;
+  }
+}
+
+/* ============================================
+   Typography
+   ============================================ */
+@layer components {
+  h1 {
+    @apply text-white font-bold;
+  }
+
+  h2 {
+    @apply text-white font-bold;
+  }
+
+  h3 {
+    @apply text-white font-bold;
+  }
+
+  h4 {
+    @apply text-white font-bold;
+  }
+
+  h5 {
+    @apply text-white font-bold;
+  }
+
+  h6 {
+    @apply text-white font-bold;
+  }
+
+  .text-muted {
+    @apply text-slate-400;
+  }
+
+  .text-sm-muted {
+    @apply text-xs text-slate-500 uppercase tracking-tight;
+  }
+}
+
+/* ============================================
+   Form Inputs
+   ============================================ */
+@layer components {
+  input[type="email"],
+  input[type="text"],
+  input[type="password"],
+  textarea,
+  select {
+    @apply bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-slate-500 focus-primary transition-all;
+  }
+
+  input[type="email"]::placeholder,
+  input[type="text"]::placeholder,
+  textarea::placeholder {
+    @apply text-slate-500;
+  }
+}
+
+/* ============================================
+   Links & Anchors
+   ============================================ */
+@layer components {
+  a {
+    @apply text-slate-100 hover:text-primary transition-colors;
+  }
+
+  .link-primary {
+    @apply text-primary hover:text-primary/80 transition-colors;
+  }
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+@layer utilities {
+  .step-line::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 40px;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #19c3e6 0%, transparent 100%);
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent;
+  }
+
+  .transition-smooth {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .glass-blur {
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* ============================================
+   Responsive Utilities
+   ============================================ */
+@media (max-width: 768px) {
+  body {
+    font-size: 0.95rem;
+  }
+
+  h1 {
+    @apply text-3xl;
+  }
+
+  h2 {
+    @apply text-2xl;
+  }
+
+  h3 {
+    @apply text-xl;
+  }
+
+  .glass-card {
+    @apply p-6;
+  }
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(25, 195, 230, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(25, 195, 230, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(25, 195, 230, 0.5);
+}
+
+/* ============================================
+   Selection Styling
+   ============================================ */
+::selection {
+  @apply bg-primary/30 text-white;
+}
+
+::-moz-selection {
+  @apply bg-primary/30 text-white;
+}
+
+/* ============================================
+   Smooth Scrolling
+   ============================================ */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ============================================
+   Focus Visible For Accessibility
+   ============================================ */
+:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-background-dark;
+}
+
+button:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-background-dark;
+}
+
+/* ============================================
+   Backdrop Blur Fallback
+   ============================================ */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass-card {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  .glass-nav {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+
+/* ============================================
+   Dark Mode Explicit
+   ============================================ */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  @apply bg-background-dark text-slate-100;
 }

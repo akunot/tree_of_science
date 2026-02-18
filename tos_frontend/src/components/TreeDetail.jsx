@@ -1,12 +1,8 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { treeAPI } from '../lib/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { 
-  TreePine, 
+import {
   ArrowLeft,
   FileJson,
   Network,
@@ -14,15 +10,15 @@ import {
   Loader2,
   ExternalLink,
   Layers,
-  File
+  File,
+  Download,
+  Share2,
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { select, forceSimulation, forceManyBody, forceCollide, forceY, scaleSqrt } from 'd3';
+import { select, forceSimulation, forceCollide, forceY } from 'd3';
 
 const TreeDetail = () => {
   const { id } = useParams();
-  const { toast } = useToast();
   const [containerElement, setContainerElement] = useState(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isInitialized, setIsInitialized] = useState(false);
@@ -31,20 +27,19 @@ const TreeDetail = () => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
-  
+
   const svgRef = useRef(null);
   const resizeObserver = useRef(null);
-  const simulationRef = useRef(null);
   const listContainerRef = useRef(null);
 
-  // ========== QUERY OPTIMIZADO ==========
+  // Query para obtener árbol
   const { data: tree, isLoading, error } = useQuery({
     queryKey: ['tree', id],
     queryFn: () => treeAPI.detail(id).then(res => res.data),
     enabled: !!id,
   });
 
-  // ========== ESTADÍSTICAS: DIRECTO DEL BACKEND ==========
+  // Estadísticas
   const treeStats = useMemo(() => {
     if (!tree?.arbol_json?.statistics) {
       return { roots: 0, trunks: 0, leaves: 0, total: 0 };
@@ -52,10 +47,9 @@ const TreeDetail = () => {
     return tree.arbol_json.statistics;
   }, [tree?.arbol_json?.statistics]);
 
-  // ========== NODOS PROCESADOS ==========
+  // Nodos procesados
   const processedNodes = useMemo(() => {
     if (!tree?.arbol_json?.nodes) return [];
-    
     return tree.arbol_json.nodes.map((node, idx) => ({
       ...node,
       id: node.id || `node-${idx}`,
@@ -73,12 +67,8 @@ const TreeDetail = () => {
 
     try {
       const rect = container.getBoundingClientRect();
-      
       if (rect.width > 0 && rect.height > 0) {
-        setDimensions({ 
-          width: rect.width,
-          height: rect.height
-        });
+        setDimensions({ width: rect.width, height: rect.height });
         return true;
       } else {
         setDimensions({ width: 400, height: 400 });
@@ -94,7 +84,7 @@ const TreeDetail = () => {
     if (!containerElement || isInitialized) return;
 
     measureDimensions();
-    
+
     try {
       resizeObserver.current = new ResizeObserver((entries) => {
         for (const entry of entries) {
@@ -104,7 +94,7 @@ const TreeDetail = () => {
           }
         }
       });
-      
+
       resizeObserver.current.observe(containerElement);
       setIsInitialized(true);
     } catch (error) {
@@ -118,8 +108,8 @@ const TreeDetail = () => {
     };
   }, [containerElement, isInitialized, measureDimensions]);
 
-  // ========== POSICIONAMIENTO RADIAL (FASE 1) ==========
-   const groupedNodes = useMemo(() => {
+  // Agrupar nodos
+  const groupedNodes = useMemo(() => {
     const roots = [];
     const trunks = [];
     const leaves = [];
@@ -131,6 +121,7 @@ const TreeDetail = () => {
     return { roots, trunks, leaves };
   }, [processedNodes]);
 
+  // Posicionamiento radial
   const getRadialPosition = useCallback(
     (node, nodeIndex, group, containerWidth, containerHeight) => {
       const { roots, trunks, leaves } = groupedNodes;
@@ -138,78 +129,53 @@ const TreeDetail = () => {
       const centerY = containerHeight / 2;
 
       if (group === 'root') {
-        // RAÍCES: banda inferior (horizontal), ligeramente curvada
         const index = roots.findIndex((n) => n.id === node.id);
         const count = Math.max(roots.length, 1);
-        const span = containerWidth * 0.7; // ancho ocupado
+        const span = containerWidth * 0.7;
         const startX = centerX - span / 2;
-        const x =
-          startX +
-          (span / Math.max(count - 1, 1)) * index +
-          (Math.random() - 0.5) * 10;
+        const x = startX + (span / Math.max(count - 1, 1)) * index + (Math.random() - 0.5) * 10;
         const baseY = containerHeight * 0.78;
-        const y =
-          baseY +
-          Math.sin((index / count) * Math.PI) * (containerHeight * 0.03) +
-          (Math.random() - 0.5) * 6;
-
+        const y = baseY + Math.sin((index / count) * Math.PI) * (containerHeight * 0.03) + (Math.random() - 0.5) * 6;
         return { x, y };
       }
 
       if (group === 'trunk') {
-        // TRONCO: columna vertical en el centro
         const index = trunks.findIndex((n) => n.id === node.id);
         const count = Math.max(trunks.length, 1);
-        const spanY = containerHeight * 0.35; // altura del tronco
+        const spanY = containerHeight * 0.35;
         const startY = centerY - spanY / 2;
-        const y =
-          startY +
-          (spanY / Math.max(count - 1, 1)) * index +
-          (Math.random() - 0.5) * 10;
+        const y = startY + (spanY / Math.max(count - 1, 1)) * index + (Math.random() - 0.5) * 10;
         const baseX = centerX;
-        const x =
-          baseX +
-          Math.sin((index / count) * Math.PI * 2) * (containerWidth * 0.04) +
-          (Math.random() - 0.5) * 6;
-
+        const x = baseX + Math.sin((index / count) * Math.PI * 2) * (containerWidth * 0.04) + (Math.random() - 0.5) * 6;
         return { x, y };
       }
 
-      // HOJAS: banda superior (horizontal), más ancha
       const index = leaves.findIndex((n) => n.id === node.id);
       const count = Math.max(leaves.length, 1);
       const span = containerWidth * 0.8;
       const startX = centerX - span / 2;
-      const x =
-        startX +
-        (span / Math.max(count - 1, 1)) * index +
-        (Math.random() - 0.5) * 12;
+      const x = startX + (span / Math.max(count - 1, 1)) * index + (Math.random() - 0.5) * 12;
       const baseY = containerHeight * 0.22;
-      const y =
-        baseY -
-        Math.cos((index / count) * Math.PI) * (containerHeight * 0.04) +
-        (Math.random() - 0.5) * 6;
-
+      const y = baseY - Math.cos((index / count) * Math.PI) * (containerHeight * 0.04) + (Math.random() - 0.5) * 6;
       return { x, y };
     },
     [groupedNodes]
   );
 
-  // ========== LAYOUT D3: POSICIONAMIENTO INICIAL ==========
+  // Layout D3
   const treeLayout = useMemo(() => {
     if (!processedNodes.length || dimensions.width === 0) return { nodes: [], links: [] };
 
     const maxNodesForPhysics = 200;
     const nodesToSimulate = processedNodes.slice(0, maxNodesForPhysics);
-    
+
     const nodes = nodesToSimulate.map((d, i) => {
-      const baseRadius = 8;
+      const baseRadius = 6;
       const scaleFactor = Math.sqrt(d.total_value || 1) * 0.8;
-      const radius = Math.max(8, Math.min(22, baseRadius + scaleFactor));
-      
-      // FASE 1: Posicionamiento radial
+      const radius = Math.max(6, Math.min(18, baseRadius + scaleFactor));
+
       const radialPos = getRadialPosition(d, i, d.group, dimensions.width, dimensions.height);
-      
+
       return {
         ...d,
         x: radialPos.x,
@@ -224,7 +190,7 @@ const TreeDetail = () => {
     return { nodes, links: [] };
   }, [processedNodes, dimensions, getRadialPosition]);
 
-  // ========== FUNCIÓN PARA ABRIR DOCUMENTO ==========
+  // Abrir documento
   const openDocument = useCallback((node) => {
     let url = null;
     let source = '';
@@ -245,22 +211,10 @@ const TreeDetail = () => {
 
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
-      toast({
-        title: `Abriendo documento`,
-        description: `${source}: ${node.label}`,
-        duration: 2000,
-      });
-    } else {
-      toast({
-        title: 'Sin enlace disponible',
-        description: `No hay información de enlace para "${node.label}"`,
-        variant: 'destructive',
-        duration: 2000,
-      });
     }
-  }, [toast]);
+  }, []);
 
-  // ========== EXPORTAR A JSON ==========
+  // Exportar JSON
   const exportToJSON = useCallback(() => {
     const exportData = {
       title: tree.title,
@@ -291,23 +245,17 @@ const TreeDetail = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `arbol-ciencia-${tree.title}-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `arbol-${tree.title || 'ciencia'}-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }, [tree, treeStats, processedNodes]);
 
-    toast({
-      title: 'Descarga exitosa',
-      description: `Árbol exportado a JSON con ${processedNodes.length} nodos`,
-      duration: 2000,
-    });
-  }, [tree, treeStats, processedNodes, toast]);
-
-  // ========== EXPORTAR A CSV ==========
+  // Exportar CSV
   const exportToCSV = useCallback(() => {
     const headers = ['ID', 'Título', 'Tipo', 'Año', 'Autores', 'DOI', 'PMID', 'arXiv', 'URL', 'Raíz', 'Tronco', 'Hoja', 'SAP', 'Citas'];
-    
+
     const rows = processedNodes.map(node => [
       node.id,
       node.label,
@@ -328,8 +276,8 @@ const TreeDetail = () => {
     let csvContent = [headers, ...rows]
       .map(row => row.map(cell => {
         const cellString = String(cell || '');
-        return cellString.includes(',') || cellString.includes('"') || cellString.includes('\n') 
-          ? `"${cellString.replace(/"/g, '""')}"` 
+        return cellString.includes(',') || cellString.includes('"') || cellString.includes('\n')
+          ? `"${cellString.replace(/"/g, '""')}"`
           : cellString;
       }).join(','))
       .join('\n');
@@ -338,58 +286,32 @@ const TreeDetail = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `arbol-ciencia-${tree.title}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `arbol-${tree.title || 'ciencia'}-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }, [tree, processedNodes]);
 
-    toast({
-      title: 'Descarga exitosa',
-      description: `Árbol exportado a CSV con ${processedNodes.length} nodos`,
-      duration: 2000,
-    });
-  }, [tree, processedNodes, toast]);
-
-  // ========== SISTEMA HÍBRIDO: RADIAL + COLISIÓN + FUERZAS DÉBILES ==========
+  // Simulación D3
   const restartSimulation = useCallback(() => {
-    if (!svgRef.current) {
-      console.error('svgRef.current es null');
-      return;
-    }
-    
-    if (!treeLayout.nodes.length) {
-      console.warn('No hay nodos para renderizar');
-      return;
-    }
-
-    if (dimensions.width <= 0 || dimensions.height <= 0) {
-      console.warn('Dimensiones inválidas');
-      return;
-    }
-
-    console.log('🌳 Iniciando simulación híbrida con', treeLayout.nodes.length, 'nodos');
+    if (!svgRef.current) return;
+    if (!treeLayout.nodes.length) return;
+    if (dimensions.width <= 0 || dimensions.height <= 0) return;
 
     setIsSimulating(true);
 
     const nodes = treeLayout.nodes.map(n => ({ ...n }));
-    
-    // ========== FASE 2: COLISIÓN ROBUSTA ==========
+
     const simulation = forceSimulation(nodes)
       .alphaDecay(0.012)
       .velocityDecay(0.45)
-      
-      // SIN repulsión de carga (para mantener estructura)
       .force("charge", null)
-      
-      // Colisión ROBUSTA (lo más importante)
       .force("collide", forceCollide()
-        .radius(d => (d.radius || 8) + 7)
+        .radius(d => (d.radius || 6) + 5)
         .strength(1.0)
         .iterations(12)
       )
-      
-      // ========== FASE 3: FUERZAS Y DÉBILES (Mantiene forma) ==========
       .force(
         "y",
         forceY((d) => {
@@ -400,16 +322,14 @@ const TreeDetail = () => {
           } else {
             return dimensions.height * 0.22;
           }
-        }).strength(0.06) // un poco más fuerte para “pegar” las bandas
+        }).strength(0.06)
       )
       .stop();
 
-    // Ejecutar simulación balanceada
     const ticks = 250;
     for (let i = 0; i < ticks; i++) {
       simulation.tick();
-      
-      // Restricciones suaves de bordes
+
       nodes.forEach(node => {
         const padding = node.radius + 3;
         const margin = 5;
@@ -418,24 +338,12 @@ const TreeDetail = () => {
       });
     }
 
-    console.log('✅ Simulación completada');
-
-    simulationRef.current = simulation;
-    
     const svgElement = svgRef.current;
     const svg = select(svgElement);
-    
-    if (!svgElement) {
-      console.error('SVG element not found');
-      return;
-    }
-    
+
     svg.selectAll("g.node").remove();
     svg.selectAll(".link").remove();
-    
-    console.log('🎨 Renderizando', nodes.length, 'nodos');
-    
-    // Mantener radios sin escalar
+
     const nodeGroups = svg.selectAll("g.node")
       .data(nodes, (d, i) => d.id || i)
       .enter()
@@ -444,36 +352,35 @@ const TreeDetail = () => {
       .attr("transform", d => `translate(${d.x},${d.y})`)
       .style("cursor", "pointer");
 
-    // Círculos con sombra
     nodeGroups.append("circle")
       .attr("r", d => d.radius)
       .attr("fill", d => {
-        if (d.group === 'root') return '#ffb74d';
-        if (d.group === 'trunk') return '#824d13';
-        return '#4caf50';
+        if (d.group === 'root') return '#ff9800';
+        if (d.group === 'trunk') return '#8b6f47';
+        return '#19c3e6';
       })
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 2)
+      .attr("stroke", "#f5f5f0")
+      .attr("stroke-width", 1.5)
       .style("cursor", "pointer")
-      .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.15))")
+      .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.3))")
       .style("transition", "all 0.2s ease")
       .on("mouseenter", function(event, d) {
         select(this)
           .transition()
           .duration(150)
-          .attr("stroke-width", 4)
-          .attr("stroke", "#333");
-        
+          .attr("stroke-width", 3)
+          .attr("r", d => d.radius + 2);
+
         setHoveredNode(d);
         setShowTooltip(true);
       })
-      .on("mouseleave", function() {
+      .on("mouseleave", function(event, d) {
         select(this)
           .transition()
           .duration(150)
-          .attr("stroke-width", 2)
-          .attr("stroke", "#fff");
-        
+          .attr("stroke-width", 1.5)
+          .attr("r", d => d.radius);
+
         setShowTooltip(false);
       })
       .on("mousemove", (event) => {
@@ -501,26 +408,24 @@ const TreeDetail = () => {
       });
 
     setIsSimulating(false);
-
   }, [treeLayout.nodes, dimensions, openDocument]);
 
-  // ========== TRIGGER SIMULATION ==========
   useEffect(() => {
     if (treeLayout.nodes.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
       restartSimulation();
     }
   }, [treeLayout.nodes.length, dimensions.width, dimensions.height, restartSimulation]);
 
-  // ========== VIRTUAL SCROLLING ==========
-  const ITEM_HEIGHT = 180;
+  // Virtual scrolling
+  const ITEM_HEIGHT = 160;
   const VISIBLE_ITEMS = Math.ceil(400 / ITEM_HEIGHT) + 2;
-  
+
   const startIndex = Math.max(0, Math.floor(scrollOffset / ITEM_HEIGHT));
   const endIndex = Math.min(processedNodes.length, startIndex + VISIBLE_ITEMS);
-  
+
   const visibleNodes = processedNodes.slice(startIndex, endIndex);
 
-  // ========== RENDERIZAR NODO EN LISTA ==========
+  // Renderizar nodo
   const renderNode = useCallback((node, index) => {
     const getLink = () => {
       if (node.doi) return `https://doi.org/${node.doi}`;
@@ -531,90 +436,70 @@ const TreeDetail = () => {
     };
 
     const link = getLink();
-    const borderColor = 
-      node.group === 'root' ? '#ffb74d' : 
-      node.group === 'trunk' ? '#824d13' : 
-      '#4caf50';
+    const borderColor =
+      node.group === 'root' ? '#ff9800' :
+        node.group === 'trunk' ? '#8b6f47' :
+          '#19c3e6';
 
     return (
-      <div 
+      <motion.div
         key={`${node.id}-${index}`}
-        className="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 transition-all cursor-pointer hover:border-blue-300 hover:shadow-md"
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.02 }}
+        className="p-3 rounded-lg border transition-all cursor-pointer hover:border-[#19c3e6] hover:bg-[#19c3e6]/5 mb-3"
         style={{
-          borderLeftWidth: '4px',
-          borderLeftColor: borderColor,
-          marginBottom: '8px'
+          borderColor: `${borderColor}40`,
+          borderLeft: `3px solid ${borderColor}`,
+          background: 'rgba(255, 255, 255, 0.03)',
+          backdropFilter: 'blur(12px)',
         }}
         onClick={() => openDocument(node)}
       >
         <div className="space-y-2">
-          <div className="flex items-start justify-between">
-            <h4 className="text-sm font-semibold text-gray-900 leading-tight flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-xs md:text-sm font-bold text-[#f5f5f0] leading-tight flex-1 line-clamp-2">
               {node.label || 'Título no disponible'}
             </h4>
             {link && (
-              <div className="ml-2 text-blue-600 flex-shrink-0">
-                <ExternalLink className="h-4 w-4" />
-              </div>
+              <ExternalLink className="h-3 w-3 md:h-4 md:w-4 text-[#19c3e6] flex-shrink-0" />
             )}
           </div>
 
-          <div className="text-xs text-gray-600">
-            <strong>Autores:</strong> {
-              typeof node.authors === 'string' 
-                ? node.authors 
-                : Array.isArray(node.authors)
-                  ? node.authors.slice(0, 3).join('; ')
-                  : 'Autor desconocido'
-            }
+          <div className="text-[10px] md:text-xs text-[#f5f5f0]/60">
+            <strong>Autores:</strong>{' '}
+            {typeof node.authors === 'string'
+              ? node.authors.substring(0, 50)
+              : Array.isArray(node.authors)
+                ? node.authors.slice(0, 2).join('; ').substring(0, 50)
+                : 'Autor desconocido'}
           </div>
 
-          <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-            <span><strong>Año:</strong> {node.year || 'N/A'}</span>
-            <span className="flex items-center">
-              <span className={`inline-block w-2 h-2 rounded-full mr-1 ${
-                node.group === 'root' ? 'bg-[#ffb74d]' : 
-                node.group === 'trunk' ? 'bg-[#824d13]' : 
-                'bg-[#4caf50]'
-              }`}></span>
+          <div className="flex flex-wrap gap-2 md:gap-4 text-[10px] md:text-xs text-[#f5f5f0]/50">
+            {node.year && <span><strong>Año:</strong> {node.year}</span>}
+            <span className="flex items-center gap-1">
+              <span
+                className={`inline-block w-1.5 h-1.5 rounded-full ${
+                  node.group === 'root' ? 'bg-[#ff9800]' :
+                    node.group === 'trunk' ? 'bg-[#8b6f47]' :
+                      'bg-[#19c3e6]'
+                }`}
+              ></span>
               {node.type_label}
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {node.root > 0 && (
-              <Badge variant="outline" className="text-xs bg-[#ffb74d]/10 text-[#ffb74d]">
-                Raíz: {node.root.toFixed(2)}
-              </Badge>
-            )}
-            {node.trunk > 0 && (
-              <Badge variant="outline" className="text-xs bg-[#824d13]/10 text-[#824d13]">
-                Tronco: {node.trunk.toFixed(2)}
-              </Badge>
-            )}
-            {node.leaf > 0 && (
-              <Badge variant="outline" className="text-xs bg-[#4caf50]/10 text-[#4caf50]">
-                Hoja: {node.leaf.toFixed(2)}
-              </Badge>
-            )}
-            {node._sap > 0 && (
-              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                SAP: {node._sap.toFixed(2)}
-              </Badge>
-            )}
-          </div>
-
           {node.doi && (
-            <div className="text-xs text-gray-500">
-              <strong>DOI:</strong> {node.doi}
+            <div className="text-[10px] text-[#f5f5f0]/40 truncate">
+              DOI: {node.doi}
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   }, [openDocument]);
 
-  // ========== TOOLTIP ==========
+  // Tooltip
   const TooltipComponent = () => {
     if (!showTooltip || !hoveredNode) return null;
 
@@ -628,7 +513,7 @@ const TreeDetail = () => {
 
     const getAuthorsString = () => {
       if (!hoveredNode.authors) return null;
-      
+
       if (typeof hoveredNode.authors === 'string') {
         return hoveredNode.authors.substring(0, 50);
       } else if (Array.isArray(hoveredNode.authors)) {
@@ -640,245 +525,253 @@ const TreeDetail = () => {
     const authorsText = getAuthorsString();
 
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         style={{
           position: 'fixed',
           left: `${tooltipPosition.x + 15}px`,
           top: `${tooltipPosition.y + 15}px`,
           zIndex: 1000,
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          background: 'rgba(15, 21, 19, 0.95)',
+          backdropFilter: 'blur(12px)',
         }}
-        className="bg-gray-900 text-white px-4 py-3 rounded-lg text-xs max-w-xs shadow-2xl border border-gray-700 backdrop-blur"
+        className="px-3 py-2 rounded-lg text-[10px] max-w-xs shadow-2xl border border-[#19c3e6]/20"
       >
-        <p className="font-semibold text-sm mb-2 leading-tight max-h-12 overflow-hidden text-ellipsis">
+        <p className="font-semibold text-xs mb-1 leading-tight max-h-8 overflow-hidden text-ellipsis text-[#f5f5f0]">
           {hoveredNode.label || 'Documento'}
         </p>
 
-        <p className="text-gray-300 text-xs mb-2">
-          {hoveredNode.group === 'root' ? '🌱 Raíz (Fundamento)' : 
-           hoveredNode.group === 'trunk' ? '🌳 Tronco (Central)' : 
-           '🍃 Hoja (Contemporáneo)'}
+        <p className="text-[#f5f5f0]/70 text-[10px] mb-1">
+          {hoveredNode.group === 'root' ? '🌱 Raíz (Fundamento)' :
+            hoveredNode.group === 'trunk' ? '🌳 Tronco (Central)' :
+              '🍃 Hoja (Contemporáneo)'}
         </p>
 
         {authorsText && (
-          <p className="text-gray-400 text-xs mb-1 truncate">
+          <p className="text-[#f5f5f0]/60 text-[10px] mb-0.5 truncate">
             👤 {authorsText}...
           </p>
         )}
 
         {hoveredNode.year && (
-          <p className="text-gray-400 text-xs mb-2">
+          <p className="text-[#f5f5f0]/60 text-[10px] mb-1">
             📅 {hoveredNode.year}
           </p>
         )}
 
-        <p className="text-blue-300 text-xs font-semibold mb-2">
+        <p className="text-[#19c3e6] text-[10px] font-semibold mb-1">
           {getDocumentSource()}
         </p>
 
-        <p className="text-gray-400 text-xs border-t border-gray-700 pt-1">
+        <p className="text-[#f5f5f0]/50 text-[10px] border-t border-[#19c3e6]/10 pt-1">
           ↻ Click para abrir
         </p>
-      </div>
+      </motion.div>
     );
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin h-8 w-8" />
+      <div className="flex items-center justify-center min-h-screen bg-[#0f1513]">
+        <Loader2 className="animate-spin h-8 w-8 text-[#19c3e6]" />
       </div>
     );
   }
 
   if (error || !tree) {
     return (
-      <div className="p-8 text-center space-y-4">
-        <p className="text-red-600">Error cargando árbol: {error?.message || 'No se encontró el árbol.'}</p>
-        <Button asChild variant="outline">
-          <Link to="/history">Volver al historial</Link>
-        </Button>
+      <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 py-8 text-center space-y-4">
+        <p className="text-red-400">Error cargando árbol: {error?.message || 'No se encontró el árbol.'}</p>
+        <Link to="/history" className="inline-block px-4 py-2 bg-[#19c3e6] text-[#1a2e05] font-bold rounded-lg">
+          Volver al historial
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full bg-gray-50">
-      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto">
-                <button 
-                onClick={() => window.history.back()}
-                className="text-gray-600 hover:text-gray-900 flex-shrink-0"
-                >
-                <ArrowLeft className="h-5 w-5" />
-                </button>
-                <div className="min-w-0">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{tree.title}</h1>
-                <p className="text-sm text-gray-600 mt-1">Semilla: {tree.seed}</p>
-                </div>
-              </div>
-
-              {/* Botones de descarga */}
-          <div className="flex gap-2 w-full md:w-auto">
-            <Button
-              onClick={exportToJSON}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 flex-1 md:flex-initial"
-            >
-              <FileJson className="h-4 w-4" />
-              <span className="hidden sm:inline">JSON</span>
-            </Button>
-            <Button
-              onClick={exportToCSV}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 flex-1 md:flex-initial"
-            >
-              <File className="h-4 w-4" />
-              <span className="hidden sm:inline">CSV</span>
-            </Button>
-
-            
+    <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+      >
+        <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto">
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            onClick={() => window.history.back()}
+            className="p-2 rounded-lg hover:bg-[#19c3e6]/10 text-[#f5f5f0] flex-shrink-0 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </motion.button>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-black text-[#f5f5f0] tracking-tight">{tree.title}</h1>
+            <p className="text-xs md:text-sm text-[#f5f5f0]/60 mt-1">Semilla: {tree.seed}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-          {/* Visualización D3 */}
-          <div className="lg:col-span-3">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Network className="h-5 w-5" />
-                  Árbol de Ciencia
-                </CardTitle>
-                {isSimulating && (
-                  <CardDescription className="flex items-center gap-2 text-blue-600">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generando estructura híbrida...
-                  </CardDescription>
-                )}
-                <CardDescription className="flex items-center gap-2 text-green-600 mt-2 text-xs md:text-sm">
-                  ✓ Pasa el mouse y haz click para abrir documentos
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div 
-                  ref={containerRefCallback}
-                  className="w-full bg-white rounded-lg border border-gray-200 overflow-hidden"
-                  style={{ 
-                    minHeight: '350px',
-                    height: '100%',
-                    aspectRatio: '16/9'
-                  }}
-                >
-                  <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Estadísticas */}
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Info className="h-5 w-5 text-blue-600" />
-                  Estadísticas
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>🍃 Hojas</span>
-                    <span className="font-medium">{treeStats.leaves}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-[#4caf50] h-2 rounded-full" 
-                      style={{ width: `${treeStats.total ? (treeStats.leaves / treeStats.total) * 100 : 0}%` }}
-                    ></div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm mt-4">
-                    <span>🌳 Tronco</span>
-                    <span className="font-medium">{treeStats.trunks}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-[#824d13] h-2 rounded-full" 
-                      style={{ width: `${treeStats.total ? (treeStats.trunks / treeStats.total) * 100 : 0}%` }}
-                    ></div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm mt-4">
-                    <span>🌱 Raíces</span>
-                    <span className="font-medium">{treeStats.roots}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-[#ffb74d] h-2 rounded-full" 
-                      style={{ width: `${treeStats.total ? (treeStats.roots / treeStats.total) * 100 : 0}%` }}
-                    ></div>
-                  </div>
-
-                  <Separator className="my-4" />
-                  
-                  <div className="text-sm">
-                    <p className="font-semibold text-gray-700">Nodos Totales</p>
-                    <p className="text-xl font-bold text-blue-600">{treeStats.total}</p>
-                  </div>
-
-                  <div className="text-sm">
-                    <p className="font-semibold text-gray-700">SAP Promedio</p>
-                    <p className="text-xl font-bold text-green-600">
-                      {treeStats.average_sap?.toFixed(2) || '0.00'}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Botones de descarga */}
+        <div className="flex gap-2 w-full md:w-auto">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={exportToJSON}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 md:px-4 py-2 rounded-lg border border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10 text-[#f5f5f0] font-bold text-xs md:text-sm uppercase tracking-widest transition-all"
+          >
+            <FileJson className="h-4 w-4" />
+            <span className="hidden sm:inline">JSON</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={exportToCSV}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 md:px-4 py-2 rounded-lg border border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10 text-[#f5f5f0] font-bold text-xs md:text-sm uppercase tracking-widest transition-all"
+          >
+            <File className="h-4 w-4" />
+            <span className="hidden sm:inline">CSV</span>
+          </motion.button>
         </div>
+      </motion.div>
 
-        {/* Lista de nodos */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-indigo-600" />
-              Artículos en el Árbol
-            </CardTitle>
-            <CardDescription>
-              {processedNodes.length} artículos ordenados por relevancia - Click para abrir
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {processedNodes.length > 0 ? (
-              <div
-                ref={listContainerRef}
-                className="border border-gray-200 rounded-lg p-4 space-y-0"
-                style={{
-                  height: '400px',
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
-                }}
-                onScroll={(e) => setScrollOffset(e.currentTarget.scrollTop)}
-              >
-                <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
-                
-                {visibleNodes.map((node, i) => 
-                  renderNode(node, startIndex + i)
-                )}
-                
-                <div style={{ height: `${(processedNodes.length - endIndex) * ITEM_HEIGHT}px` }} />
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">No hay nodos disponibles</p>
+      {/* Grid principal */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+      >
+        {/* Visualización D3 */}
+        <div className="lg:col-span-3 space-y-4">
+          <div className="space-y-3">
+            <h2 className="text-sm font-bold text-[#f5f5f0] uppercase tracking-widest flex items-center gap-2">
+              <Network className="h-5 w-5 text-[#19c3e6]" />
+              Árbol de Ciencia
+            </h2>
+            {isSimulating && (
+              <p className="text-xs text-[#19c3e6] flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Generando estructura...
+              </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+            <p className="text-xs text-[#19c3e6]/70">✓ Pasa el mouse y haz click para abrir documentos</p>
+          </div>
+
+          <div
+            ref={containerRefCallback}
+            className="w-full rounded-xl border border-[#19c3e6]/20 overflow-hidden"
+            style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              backdropFilter: 'blur(12px)',
+              minHeight: '350px',
+              height: '100%',
+              aspectRatio: '16/9'
+            }}
+          >
+            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+          </div>
+        </div>
+
+        {/* Estadísticas */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          <div className="p-4 rounded-xl border border-[#19c3e6]/20"
+            style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <h3 className="text-xs font-bold text-[#f5f5f0] uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Info className="h-4 w-4 text-[#19c3e6]" />
+              Estadísticas
+            </h3>
+
+            <div className="space-y-4">
+              {[
+                { label: '🍃 Hojas', value: treeStats.leaves, color: '#19c3e6', key: 'leaves' },
+                { label: '🌳 Tronco', value: treeStats.trunks, color: '#8b6f47', key: 'trunks' },
+                { label: '🌱 Raíces', value: treeStats.roots, color: '#ff9800', key: 'roots' },
+              ].map((stat) => (
+                <div key={stat.key}>
+                  <div className="flex items-center justify-between mb-2 text-xs">
+                    <span className="text-[#f5f5f0]/70">{stat.label}</span>
+                    <span className="text-[#f5f5f0] font-bold">{stat.value}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#19c3e6]/10 rounded-full overflow-hidden border border-[#19c3e6]/20">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${treeStats.total ? (stat.value / treeStats.total) * 100 : 0}%` }}
+                      transition={{ duration: 0.8, delay: 0.3 }}
+                      className="h-full"
+                      style={{ background: stat.color }}
+                    ></motion.div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="border-t border-[#19c3e6]/10 pt-4 mt-4">
+                <div className="text-xs text-[#f5f5f0]/70 mb-1">Nodos Totales</div>
+                <p className="text-2xl font-black text-[#19c3e6]">{treeStats.total}</p>
+              </div>
+
+              {treeStats.average_sap && (
+                <div>
+                  <div className="text-xs text-[#f5f5f0]/70 mb-1">SAP Promedio</div>
+                  <p className="text-xl font-bold text-[#19c3e6]">{treeStats.average_sap.toFixed(2)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Lista de nodos */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="space-y-4"
+      >
+        <h2 className="text-sm font-bold text-[#f5f5f0] uppercase tracking-widest flex items-center gap-2">
+          <Layers className="h-5 w-5 text-[#19c3e6]" />
+          Artículos en el Árbol
+        </h2>
+        <p className="text-xs text-[#f5f5f0]/60">{processedNodes.length} artículos ordenados por relevancia - Click para abrir</p>
+
+        {processedNodes.length > 0 ? (
+          <div
+            ref={listContainerRef}
+            className="rounded-xl border border-[#19c3e6]/20 p-4"
+            style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              backdropFilter: 'blur(12px)',
+              height: '400px',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }}
+            onScroll={(e) => setScrollOffset(e.currentTarget.scrollTop)}
+          >
+            <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
+
+            {visibleNodes.map((node, i) =>
+              renderNode(node, startIndex + i)
+            )}
+
+            <div style={{ height: `${(processedNodes.length - endIndex) * ITEM_HEIGHT}px` }} />
+          </div>
+        ) : (
+          <div className="text-center py-8 text-[#f5f5f0]/60">
+            <p className="text-sm">No hay nodos disponibles</p>
+          </div>
+        )}
+      </motion.div>
 
       {/* Tooltip */}
       <TooltipComponent />

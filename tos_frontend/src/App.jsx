@@ -27,7 +27,7 @@ import AdminRequest from './components/AdminRequest';
 // Rutas de administrador
 import AdminRoutes from './components/admin/AdminRoutes';
 
-import './App.css';
+import './index.css'
 
 // Crear cliente de React Query
 const queryClient = new QueryClient({

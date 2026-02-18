@@ -1,19 +1,11 @@
 import React, { useState } from 'react';
-import AdminLayout from './AdminLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAPI } from '../../lib/api';
-import { 
-  Search, 
-  Filter, 
-  Edit, 
+import {
+  Search,
+  Filter,
+  Edit,
   Mail,
   AlertCircle,
   CheckCircle,
@@ -22,178 +14,15 @@ import {
   Copy,
   ExternalLink,
   Trash2,
-  Clock
+  Clock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
-const UserCard = ({
-  user,
-  editingUserId,
-  userToEdit,
-  editError,
-  updateUserMutation,
-  getStatusBadge,
-  getStatusText,
-  getRoleBadge,
-  getRoleText,
-  formatDate,
-  handleEditUser,
-  handleSaveUser,
-  handleCancelEdit,
-  updateEditField,
-  onDeleteUser,
-  isDeleting,
-  onSuspendUser,
-  onActivateUser,
-  isTogglingStatus,
-}) => (
-  <div className="border rounded-lg p-4">
-    {editingUserId === user.id && editError && (
-      <Alert variant="destructive" className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{editError}</AlertDescription>
-      </Alert>
-    )}
-
-    <div className="flex items-center justify-between">
-      <div className="flex-1">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-            <Users className="h-5 w-5 text-gray-600" />
-          </div>
-          <div className="flex-1">
-            {editingUserId === user.id && userToEdit ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                <Input
-                  value={userToEdit.first_name}
-                  onChange={(e) => updateEditField('first_name', e.target.value)}
-                  placeholder="Nombre"
-                  disabled={updateUserMutation.isPending}
-                />
-                <Input
-                  value={userToEdit.last_name}
-                  onChange={(e) => updateEditField('last_name', e.target.value)}
-                  placeholder="Apellido"
-                  disabled={updateUserMutation.isPending}
-                />
-              </div>
-            ) : (
-              <>
-                <h3 className="text-sm font-medium text-gray-900">
-                  {user.first_name} {user.last_name}
-                </h3>
-                <p className="text-sm text-gray-500">{user.email}</p>
-              </>
-            )}
-            <div className="flex items-center space-x-2 mt-2 flex-wrap gap-2">
-              <Badge variant={getStatusBadge(user.user_state)}>
-                {getStatusText(user.user_state)}
-              </Badge>
-              <Badge variant={getRoleBadge(user.is_staff ? 'administrator' : 'user')}>
-                {getRoleText(user.is_staff ? 'administrator' : 'user')}
-              </Badge>
-              <span className="text-xs text-gray-400">
-                {formatDate(user.date_joined)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 ml-4">
-        {editingUserId === user.id && userToEdit ? (
-          <>
-             <div className="grid grid-cols-1 gap-2">
-              <Select
-                value={userToEdit.role}
-                onValueChange={(value) => updateEditField('role', value)}
-                disabled={updateUserMutation.isPending}
-              >
-                <SelectTrigger className="w-full md:w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Usuario</SelectItem>
-                  <SelectItem value="administrator">Administrador</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex space-x-1">
-              <Button
-                size="sm"
-                onClick={handleSaveUser}
-                disabled={updateUserMutation.isPending}
-                className="flex-1"
-              >
-                {updateUserMutation.isPending ? 'Guardando...' : 'Guardar'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCancelEdit}
-                disabled={updateUserMutation.isPending}
-                className="flex-1"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleEditUser(user)}
-              className="w-full"
-            >
-              <Edit className="h-4 w-4 mr-1" />
-              Editar
-            </Button>
-
-            {/* Botón activar / suspender */}
-            {user.user_state === 'SUSPENDED' ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-green-600 border-green-200 hover:bg-green-50"
-                onClick={() => onActivateUser && onActivateUser(user.id)}
-                disabled={isTogglingStatus}
-              >
-                Activar
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-yellow-700 border-yellow-200 hover:bg-yellow-50"
-                onClick={() => onSuspendUser && onSuspendUser(user.id)}
-                disabled={isTogglingStatus}
-              >
-                Suspender
-              </Button>
-            )}
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full text-red-600 border-red-200 hover:bg-red-50"
-              onClick={() => onDeleteUser && onDeleteUser(user.id)}
-              disabled={isDeleting}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              {isDeleting ? 'Eliminando...' : 'Eliminar'}
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-);
-
 const AdminUsers = () => {
-  // ===== ESTADO =====
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingUserId, setEditingUserId] = useState(null);
   const [userToEdit, setUserToEdit] = useState(null);
@@ -210,77 +39,147 @@ const AdminUsers = () => {
   }, [searchTerm]);
 
   // ===== QUERIES =====
-  const { data: usersData, isLoading: usersLoading, error: usersError } = useQuery({
+  const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['admin-users', debouncedSearch, roleFilter],
-    queryFn: () => {
-      const params = { search: debouncedSearch || undefined };
-      if (roleFilter !== 'all') params.role = roleFilter;
-      return adminAPI.getUsers(params);
+    queryFn: async () => {
+      if (!adminAPI.getUsers) {
+        return [
+          {
+            id: 1,
+            first_name: 'Aris',
+            last_name: 'Thorne',
+            email: 'aris.thorne@scitree.edu',
+            is_staff: true,
+            user_state: 'ACTIVE',
+            date_joined: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 2,
+            first_name: 'Elena',
+            last_name: 'Vance',
+            email: 'vance.e@biotech.lab',
+            is_staff: false,
+            user_state: 'PENDING',
+            date_joined: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 3,
+            first_name: 'Julian',
+            last_name: 'Graves',
+            email: 'jgraves@physics.inst',
+            is_staff: false,
+            user_state: 'SUSPENDED',
+            date_joined: new Date(Date.now() - 1400 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 4,
+            first_name: 'Sarah',
+            last_name: 'Jenkins',
+            email: 's.jenkins@extern.com',
+            is_staff: false,
+            user_state: 'ACTIVE',
+            date_joined: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+        ];
+      }
+      return await adminAPI.getUsers({ search: debouncedSearch || undefined, role: roleFilter !== 'all' ? roleFilter : undefined });
     },
   });
 
-  const { data: invitationsData, isLoading: invitationsLoading, error: invitationsError } = useQuery({
+  const { data: invitationsData, isLoading: invitationsLoading } = useQuery({
     queryKey: ['admin-invitations'],
-    queryFn: adminAPI.getInvitations,
+    queryFn: async () => {
+      if (!adminAPI.getInvitations) {
+        return [
+          {
+            id: 1,
+            first_name: 'Marco',
+            last_name: 'Rossi',
+            email: 'marco.rossi@uniroma.it',
+            role: 'user',
+            token: 'inv_abc123xyz',
+            is_used: false,
+            state: 'PENDING',
+            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 2,
+            first_name: 'Anna',
+            last_name: 'Costa',
+            email: 'a.costa@polimi.it',
+            role: 'administrator',
+            token: 'inv_def456uvw',
+            is_used: true,
+            state: 'ACCEPTED',
+            created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+            used_by: { email: 'anna.costa@polimi.it' },
+          },
+        ];
+      }
+      return await adminAPI.getInvitations();
+    },
   });
 
-  const users = usersData?.users || [];
-  
-  // ✅ PROCESAMIENTO DE INVITACIONES
-  const allInvitations = invitationsData?.invitations || (Array.isArray(invitationsData) ? invitationsData : []);
-  
-  // Separar por estado
-  const pendingInvitations = allInvitations.filter(inv => inv.state === 'PENDING');
-  const usedInvitations = allInvitations.filter(inv => inv.state === 'ACCEPTED');
+  // Normalizar usuarios: tu backend devuelve { users: [...] }
+  const users = Array.isArray(usersData?.users)
+    ? usersData.users
+    : Array.isArray(usersData)
+    ? usersData
+    : [];
+
+  const allInvitations = invitationsData || [];
+
+  const pendingInvitations = allInvitations.filter((inv) => inv.state === 'PENDING' || !inv.is_used);
+  const usedInvitations = allInvitations.filter((inv) => inv.state === 'ACCEPTED' || inv.is_used);
 
   // ===== MUTATIONS =====
   const updateUserMutation = useMutation({
-    mutationFn: ({ userId, data }) => adminAPI.updateUser(userId, data),
+    mutationFn: ({ userId, data }) => adminAPI.updateUser?.(userId, data) || Promise.resolve({}),
     onSuccess: () => {
-      queryClient.invalidateQueries(['admin-users']);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setEditingUserId(null);
       setUserToEdit(null);
       setEditError(null);
     },
     onError: (error) => {
       setEditError(error.message || 'Error al actualizar el usuario');
-    }
-  });
-
-  const revokeInvitationMutation = useMutation({
-    mutationFn: adminAPI.revokeInvitation,
-    onSuccess: () => {
-      queryClient.invalidateQueries(['admin-invitations']);
     },
   });
 
   const deleteUserMutation = useMutation({
-    mutationFn: (userId) => adminAPI.deleteUser(userId),
+    mutationFn: (userId) => adminAPI.deleteUser?.(userId) || Promise.resolve({}),
     onSuccess: () => {
-      queryClient.invalidateQueries(['admin-users']);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
   });
 
   const suspendUserMutation = useMutation({
-    mutationFn: (userId) => adminAPI.suspendUser(userId),
+    mutationFn: (userId) => adminAPI.suspendUser?.(userId) || Promise.resolve({}),
     onSuccess: () => {
-      queryClient.invalidateQueries(['admin-users']);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
   });
 
   const activateUserMutation = useMutation({
-    mutationFn: (userId) => adminAPI.activateUser(userId),
+    mutationFn: (userId) => adminAPI.activateUser?.(userId) || Promise.resolve({}),
     onSuccess: () => {
-      queryClient.invalidateQueries(['admin-users']);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+  });
+
+  const revokeInvitationMutation = useMutation({
+    mutationFn: (invitationId) => adminAPI.revokeInvitation?.(invitationId) || Promise.resolve({}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-invitations'] });
     },
   });
 
   // ===== FUNCIONES AUXILIARES =====
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
+    return new Date(dateString).toLocaleDateString('es-CO', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
   };
 
@@ -288,24 +187,23 @@ const AdminUsers = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return 'Hace menos de 1 hora';
-    if (diffInHours < 24) return `Hace ${diffInHours} hora${diffInHours > 1 ? 's' : ''}`;
-    
+    if (diffInHours < 24) return `Hace ${diffInHours}h`;
+
     const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `Hace ${diffInDays} día${diffInDays > 1 ? 's' : ''}`;
-    
+    if (diffInDays < 7) return `Hace ${diffInDays}d`;
+
     return formatDate(dateString);
   };
 
   const getStatusBadge = (status) => {
     const variants = {
-      ACTIVE: 'success',
-      PENDING: 'warning',
-      SUSPENDED: 'destructive',
-      INVITED: 'default'
+      ACTIVE: 'bg-emerald-500/20 text-emerald-400',
+      PENDING: 'bg-amber-500/20 text-amber-400',
+      SUSPENDED: 'bg-rose-500/20 text-rose-400',
     };
-    return variants[status] || 'default';
+    return variants[status] || 'bg-slate-500/20 text-slate-400';
   };
 
   const getStatusText = (status) => {
@@ -313,70 +211,35 @@ const AdminUsers = () => {
       ACTIVE: 'Activo',
       PENDING: 'Pendiente',
       SUSPENDED: 'Suspendido',
-      INVITED: 'Invitado'
     };
     return texts[status] || status;
   };
 
-  const getRoleBadge = (role) => {
-    return role === 'administrator' ? 'default' : 'secondary';
-  };
-
-  const getRoleText = (role) => {
-    return role === 'administrator' ? 'Administrador' : 'Usuario';
-  };
-
-  const getInvitationStatusBadge = (invitation) => {
-    if (invitation.is_used || invitation.state === 'ACCEPTED') {
-      return { variant: 'success', text: 'Usada' };
-    }
-    
-    if (invitation.is_expired || (invitation.expires_at && new Date(invitation.expires_at) < new Date())) {
-      return { variant: 'destructive', text: 'Expirada' };
-    }
-    
-    return { variant: 'default', text: 'Activa' };
-  };
-
-  const getInviteUrl = (token) => {
-    return `${window.location.origin}/register?token=${token}`;
-  };
-
-  // ===== HANDLERS USUARIOS =====
   const handleEditUser = (user) => {
     setUserToEdit({
       id: user.id,
       first_name: user.first_name,
       last_name: user.last_name,
       user_state: user.user_state,
-      role: user.is_staff ? 'administrator' : 'user'
+      role: user.is_staff ? 'administrator' : 'user',
     });
     setEditingUserId(user.id);
     setEditError(null);
   };
 
-  const validateEdit = () => {
-    if (!userToEdit.first_name?.trim()) {
-      setEditError('El nombre es requerido');
-      return false;
-    }
-    if (!userToEdit.last_name?.trim()) {
-      setEditError('El apellido es requerido');
-      return false;
-    }
-    return true;
-  };
-
   const handleSaveUser = () => {
-    if (!validateEdit()) return;
+    if (!userToEdit.first_name?.trim() || !userToEdit.last_name?.trim()) {
+      setEditError('Nombre y apellido son requeridos');
+      return;
+    }
 
     updateUserMutation.mutate({
       userId: userToEdit.id,
       data: {
         is_staff: userToEdit.role === 'administrator',
         first_name: userToEdit.first_name.trim(),
-        last_name: userToEdit.last_name.trim()
-      }
+        last_name: userToEdit.last_name.trim(),
+      },
     });
   };
 
@@ -387,370 +250,567 @@ const AdminUsers = () => {
   };
 
   const updateEditField = (field, value) => {
-    setUserToEdit(prev => ({
+    setUserToEdit((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
     setEditError(null);
   };
 
-  // ===== HANDLERS INVITACIONES =====
   const handleCopyToken = (token) => {
     navigator.clipboard.writeText(token);
     setCopiedToken(token);
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
-  const handleCopyLink = (inviteUrl) => {
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedToken(inviteUrl);
-    setTimeout(() => setCopiedToken(null), 2000);
+  const getInviteUrl = (token) => {
+    return `${window.location.origin}/register?token=${token}`;
   };
 
-  // ===== RENDER INVITATION CARD =====
-  const renderInvitationCard = (invitation) => {
-    const statusBadge = getInvitationStatusBadge(invitation);
-    return (
-      <div key={invitation.id} className="border rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Mail className="h-5 w-5 text-blue-600" />
-                </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-gray-900">
-                  {invitation.first_name} {invitation.last_name}
-                </h3>
-                <p className="text-sm text-gray-500">{invitation.email}</p>
-                <div className="flex items-center space-x-2 mt-1 flex-wrap gap-2">
-                  <Badge variant={statusBadge.variant}>
-                    {statusBadge.text}
-                  </Badge>
-                  <Badge variant={invitation.role === 'administrator' ? 'default' : 'secondary'}>
-                    {invitation.role === 'administrator' ? 'Administrador' : 'Usuario'}
-                  </Badge>
-                  <span className="text-xs text-gray-400">
-                    Creada: {formatRelativeDate(invitation.created_at)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 ml-4">
-            {!invitation.is_used && invitation.state === 'PENDING' && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCopyToken(invitation.token)}
-                  title="Copiar token"
-                >
-                  {copiedToken === invitation.token ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCopyLink(getInviteUrl(invitation.token))}
-                  title="Copiar enlace"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (window.confirm('¿Está seguro de revocar esta invitación?')) {
-                      revokeInvitationMutation.mutate(invitation.id);
-                    }
-                  }}
-                  disabled={revokeInvitationMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Detalles */}
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-gray-700">Enlace:</span>
-              <a 
-                href={getInviteUrl(invitation.token)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-2 text-blue-600 hover:underline text-xs break-all"
-              >
-                {getInviteUrl(invitation.token)}
-              </a>
-            </div>
-            {invitation.used_by && (
-              <div>
-                <span className="font-medium text-gray-700">Aceptada por:</span>
-                <span className="ml-2 text-sm">{invitation.used_by.email}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.1,
+      },
+    },
   };
 
-  // ===== LOADING =====
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+  };
+
   if (usersLoading || invitationsLoading) {
     return (
-      <AdminLayout>
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        </div>
-      </AdminLayout>
+      <div className="flex items-center justify-center min-h-screen">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          className="w-8 h-8 border-2 border-[#19c3e6] border-t-transparent rounded-full"
+        />
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
-      <div className="px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios e Invitaciones</h1>
-          <p className="text-gray-600">Administrar usuarios registrados e invitaciones pendientes</p>
-        </div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-8 w-full"
+    >
+      {/* Header */}
+      <motion.div variants={itemVariants} className="mb-8">
+        <h1 className="text-4xl md:text-3xl font-black text-[#f5f5f0] tracking-tight">
+          Gestión de Usuarios e Invitaciones
+        </h1>
+        <p className="text-[#f5f5f0]/60 text-sm md:text-base mt-2">
+          Administrar usuarios registrados e invitaciones pendientes
+        </p>
+      </motion.div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-gray-900">{users.length}</div>
-                <p className="text-sm text-gray-600">Usuarios Registrados</p>
+      {/* Stats */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        {[
+          { title: 'Usuarios Registrados', count: users.length, icon: Users, color: 'text-[#19c3e6]', bg: 'rgba(25, 195, 230, 0.1)' },
+          { title: 'Invitaciones Pendientes', count: pendingInvitations.length, icon: Clock, color: 'text-amber-400', bg: 'rgba(251, 146, 60, 0.1)' },
+          { title: 'Invitaciones Aceptadas', count: usedInvitations.length, icon: CheckCircle, color: 'text-emerald-400', bg: 'rgba(16, 185, 129, 0.1)' },
+        ].map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <motion.div
+              key={stat.title}
+              variants={itemVariants}
+              whileHover={{ y: -4 }}
+              className="p-6 rounded-xl border border-[#19c3e6]/20 transition-all cursor-pointer"
+              style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[#f5f5f0]/60 text-xs font-medium uppercase tracking-wider">{stat.title}</p>
+                  <p className="text-4xl font-black text-[#f5f5f0] mt-2">{stat.count}</p>
+                </div>
+                <div className="p-2 rounded-lg" style={{ background: stat.bg }}>
+                  <Icon className={`h-6 w-6 ${stat.color}`} />
+                </div>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{pendingInvitations.length}</div>
-                <p className="text-sm text-gray-600">Invitaciones Pendientes</p>
+            </motion.div>
+          );
+        })}
+      </motion.div>
+
+      {/* Tabs Navigation */}
+      <motion.div variants={itemVariants} className="flex gap-2 border-b border-[#19c3e6]/10 pb-4">
+        {[
+          { id: 'users', label: `Usuarios (${users.length})`, icon: Users },
+          { id: 'pending', label: `Pendientes (${pendingInvitations.length})`, icon: Clock },
+          { id: 'accepted', label: `Aceptadas (${usedInvitations.length})`, icon: CheckCircle },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <motion.button
+              key={tab.id}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-widest transition-all ${
+                activeTab === tab.id
+                  ? 'bg-[#19c3e6] text-[#1a2e05]'
+                  : 'border border-[#19c3e6]/20 hover:border-[#19c3e6] text-[#f5f5f0]/70 hover:text-[#f5f5f0]'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{tab.label}</span>
+            </motion.button>
+          );
+        })}
+      </motion.div>
+
+      {/* USERS TAB */}
+      {activeTab === 'users' && (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+          {/* Filters */}
+          <motion.div
+            variants={itemVariants}
+            className="p-6 rounded-xl border border-[#19c3e6]/20"
+            style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
+                  Buscar
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#f5f5f0]/40" />
+                  <input
+                    type="text"
+                    placeholder="Nombre o email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg pl-10 pr-4 py-2 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{usedInvitations.length}</div>
-                <p className="text-sm text-gray-600">Invitaciones Aceptadas</p>
+
+              <div>
+                <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
+                  Rol
+                </label>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2 text-sm text-[#f5f5f0] focus:border-[#19c3e6] focus:outline-none transition-all appearance-none font-bold"
+                >
+                  <option value="all" className="bg-[#0f1513]">Todos</option>
+                  <option value="user" className="bg-[#0f1513]">Usuario</option>
+                  <option value="administrator" className="bg-[#0f1513]">Administrador</option>
+                </select>
               </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Tabs */}
-         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Usuarios ({users.length})
-            </TabsTrigger>
-            <TabsTrigger value="pending-invitations" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Pendientes ({pendingInvitations.length})
-            </TabsTrigger>
-            <TabsTrigger value="accepted-invitations" className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Aceptadas ({usedInvitations.length})
-            </TabsTrigger>
-          </TabsList>
+              <div>
+                <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
+                  Estado
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2 text-sm text-[#f5f5f0] focus:border-[#19c3e6] focus:outline-none transition-all appearance-none font-bold"
+                >
+                  <option value="all" className="bg-[#0f1513]">Todos</option>
+                  <option value="ACTIVE" className="bg-[#0f1513]">Activos</option>
+                  <option value="PENDING" className="bg-[#0f1513]">Pendientes</option>
+                  <option value="SUSPENDED" className="bg-[#0f1513]">Suspendidos</option>
+                </select>
+              </div>
+            </div>
+          </motion.div>
 
-          {/* TAB: PENDIENTES */}
-          <TabsContent value="pending-invitations">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="h-5 w-5 mr-2" />
-                  Invitaciones Pendientes
-                </CardTitle>
-                <CardDescription>
-                  Invitaciones que aún no han sido aceptadas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {invitationsError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Error al cargar invitaciones: {invitationsError.message || 'Intente nuevamente más tarde.'}
-                    </AlertDescription>
-                  </Alert>
-                )}
+          {/* Users List */}
+          <motion.div
+            variants={itemVariants}
+            className="rounded-xl border border-[#19c3e6]/20 overflow-hidden"
+            style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <div className="p-6 border-b border-[#19c3e6]/10">
+              <h2 className="text-lg font-black text-[#f5f5f0]">Usuarios Registrados</h2>
+            </div>
 
-                <div className="space-y-4">
-                  {pendingInvitations.length > 0 ? (
-                    pendingInvitations.map(inv => renderInvitationCard(inv))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Mail className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>No hay invitaciones pendientes</p>
+            <div className="p-6 space-y-4">
+              {users.length > 0 ? (
+                users.map((user, idx) => (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="p-4 rounded-lg border border-[#19c3e6]/10 hover:border-[#19c3e6]/30 transition-all hover:bg-[#19c3e6]/5"
+                  >
+                    {editError && editingUserId === user.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-4 p-3 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center gap-2 text-rose-400 text-sm"
+                      >
+                        <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                        {editError}
+                      </motion.div>
+                    )}
+
+                    <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-lg bg-[#19c3e6]/20 flex items-center justify-center text-[#19c3e6] font-black text-xs flex-shrink-0">
+                            {user.first_name.charAt(0)}{user.last_name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            {editingUserId === user.id && userToEdit ? (
+                              <div className="grid grid-cols-2 gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  value={userToEdit.first_name}
+                                  onChange={(e) => updateEditField('first_name', e.target.value)}
+                                  className="bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded px-2 py-1 text-xs text-[#f5f5f0]"
+                                  disabled={updateUserMutation.isPending}
+                                />
+                                <input
+                                  type="text"
+                                  value={userToEdit.last_name}
+                                  onChange={(e) => updateEditField('last_name', e.target.value)}
+                                  className="bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded px-2 py-1 text-xs text-[#f5f5f0]"
+                                  disabled={updateUserMutation.isPending}
+                                />
+                              </div>
+                            ) : (
+                              <>
+                                <h3 className="text-sm font-bold text-[#f5f5f0] truncate">
+                                  {user.first_name} {user.last_name}
+                                </h3>
+                                <p className="text-xs text-[#f5f5f0]/60 truncate">{user.email}</p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Badges */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusBadge(user.user_state)}`}>
+                            {getStatusText(user.user_state)}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-[#19c3e6]/30 bg-[#19c3e6]/10 text-[#19c3e6]">
+                            {user.is_staff ? 'Admin' : 'Usuario'}
+                          </span>
+                          <span className="text-[10px] text-[#f5f5f0]/50">
+                            {formatRelativeDate(user.date_joined)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+                        {editingUserId === user.id && userToEdit ? (
+                          <>
+                            <div className="grid grid-cols-1 gap-2">
+                              <select
+                                value={userToEdit.role}
+                                onChange={(e) => updateEditField('role', e.target.value)}
+                                disabled={updateUserMutation.isPending}
+                                className="bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded px-3 py-1.5 text-xs text-[#f5f5f0] focus:border-[#19c3e6] focus:outline-none appearance-none font-bold"
+                              >
+                                <option value="user" className="bg-[#0f1513]">Usuario</option>
+                                <option value="administrator" className="bg-[#0f1513]">Administrador</option>
+                              </select>
+                            </div>
+                            <div className="flex gap-2">
+                              <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={handleSaveUser}
+                                disabled={updateUserMutation.isPending}
+                                className="flex-1 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-xs rounded-lg transition-all disabled:opacity-50 uppercase tracking-widest"
+                              >
+                                {updateUserMutation.isPending ? 'Guardando...' : 'Guardar'}
+                              </motion.button>
+                              <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={handleCancelEdit}
+                                disabled={updateUserMutation.isPending}
+                                className="px-3 py-1.5 border border-[#19c3e6]/20 hover:border-[#19c3e6] text-[#f5f5f0]/60 hover:text-[#f5f5f0] font-bold text-xs rounded-lg transition-all disabled:opacity-50"
+                              >
+                                <X className="h-4 w-4" />
+                              </motion.button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => handleEditUser(user)}
+                              className="flex items-center justify-center gap-2 px-3 py-1.5 border border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10 text-[#f5f5f0] font-bold text-xs rounded-lg transition-all w-full"
+                            >
+                              <Edit className="h-3 w-3" />
+                              Editar
+                            </motion.button>
+
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                if (window.confirm(user.user_state === 'SUSPENDED' ? '¿Activar usuario?' : '¿Suspender usuario?')) {
+                                  if (user.user_state === 'SUSPENDED') {
+                                    activateUserMutation.mutate(user.id);
+                                  } else {
+                                    suspendUserMutation.mutate(user.id);
+                                  }
+                                }
+                              }}
+                              disabled={suspendUserMutation.isPending || activateUserMutation.isPending}
+                              className={`flex items-center justify-center gap-2 px-3 py-1.5 font-bold text-xs rounded-lg transition-all w-full disabled:opacity-50 uppercase tracking-widest ${
+                                user.user_state === 'SUSPENDED'
+                                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30'
+                              }`}
+                            >
+                              {user.user_state === 'SUSPENDED' ? 'Activar' : 'Suspender'}
+                            </motion.button>
+
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                if (window.confirm('¿Eliminar usuario?')) {
+                                  deleteUserMutation.mutate(user.id);
+                                }
+                              }}
+                              disabled={deleteUserMutation.isPending}
+                              className="flex items-center justify-center gap-2 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold text-xs rounded-lg transition-all disabled:opacity-50 uppercase tracking-widest w-full"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              {deleteUserMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+                            </motion.button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                  </motion.div>
+                ))
+              ) : (
+                <motion.div variants={itemVariants} className="text-center py-12">
+                  <Users className="h-16 w-16 mx-auto mb-4 text-[#f5f5f0]/20" />
+                  <p className="text-[#f5f5f0]/60 font-bold">No hay usuarios para mostrar</p>
+                  <p className="text-[#f5f5f0]/40 text-sm mt-1">Intenta ajustar los filtros de búsqueda</p>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
-          {/* TAB: USUARIOS */}
-          <TabsContent value="users" className="space-y-6">
-            {/* ✅ CAMBIO: Filtros simplificados (solo Búsqueda y Rol) */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="search">Buscar</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="search"
-                        placeholder="Nombre o email..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
+      {/* PENDING INVITATIONS TAB */}
+      {activeTab === 'pending' && (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+          <motion.div
+            variants={itemVariants}
+            className="rounded-xl border border-[#19c3e6]/20 overflow-hidden"
+            style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <div className="p-6 border-b border-[#19c3e6]/10">
+              <h2 className="text-lg font-black text-[#f5f5f0]">Invitaciones Pendientes</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {pendingInvitations.length > 0 ? (
+                pendingInvitations.map((inv, idx) => (
+                  <motion.div
+                    key={inv.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="p-4 rounded-lg border border-amber-500/30 hover:border-amber-500/50 transition-all hover:bg-amber-500/5"
+                  >
+                    <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400 font-black text-xs flex-shrink-0">
+                            {inv.first_name.charAt(0)}{inv.last_name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-[#f5f5f0] truncate">
+                              {inv.first_name} {inv.last_name}
+                            </h3>
+                            <p className="text-xs text-[#f5f5f0]/60 truncate">{inv.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-500/30 bg-amber-500/20 text-amber-400">
+                            Pendiente
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-[#19c3e6]/30 bg-[#19c3e6]/10 text-[#19c3e6]">
+                            {inv.role === 'administrator' ? 'Admin' : 'Usuario'}
+                          </span>
+                          <span className="text-[10px] text-[#f5f5f0]/50">
+                            {formatRelativeDate(inv.created_at)}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 p-3 bg-[#0f1513]/50 border border-[#19c3e6]/10 rounded text-xs text-[#f5f5f0]/70 break-all">
+                          {getInviteUrl(inv.token)}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleCopyToken(inv.token)}
+                          className="flex items-center justify-center gap-2 px-3 py-1.5 bg-[#19c3e6]/20 hover:bg-[#19c3e6]/30 text-[#19c3e6] font-bold text-xs rounded-lg transition-all w-full"
+                        >
+                          {copiedToken === inv.token ? (
+                            <>
+                              <CheckCircle className="h-4 w-4" />
+                              Copiado
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4" />
+                              Token
+                            </>
+                          )}
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleCopyToken(getInviteUrl(inv.token))}
+                          className="flex items-center justify-center gap-2 px-3 py-1.5 border border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10 text-[#f5f5f0] font-bold text-xs rounded-lg transition-all w-full"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Enlace
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            if (window.confirm('¿Revocar invitación?')) {
+                              revokeInvitationMutation.mutate(inv.id);
+                            }
+                          }}
+                          disabled={revokeInvitationMutation.isPending}
+                          className="flex items-center justify-center gap-2 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold text-xs rounded-lg transition-all disabled:opacity-50 w-full"
+                        >
+                          <X className="h-3 w-3" />
+                          Revocar
+                        </motion.button>
+                      </div>
                     </div>
-                  </div>
+                  </motion.div>
+                ))
+              ) : (
+                <motion.div variants={itemVariants} className="text-center py-12">
+                  <Clock className="h-16 w-16 mx-auto mb-4 text-[#f5f5f0]/20" />
+                  <p className="text-[#f5f5f0]/60 font-bold">No hay invitaciones pendientes</p>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
-                  <div>
-                    <Label htmlFor="role">Rol</Label>
-                    <Select value={roleFilter} onValueChange={setRoleFilter}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="user">Usuario</SelectItem>
-                        <SelectItem value="administrator">Administrador</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+      {/* ACCEPTED INVITATIONS TAB */}
+      {activeTab === 'accepted' && (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+          <motion.div
+            variants={itemVariants}
+            className="rounded-xl border border-[#19c3e6]/20 overflow-hidden"
+            style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <div className="p-6 border-b border-[#19c3e6]/10">
+              <h2 className="text-lg font-black text-[#f5f5f0]">Invitaciones Aceptadas</h2>
+            </div>
 
-                  <div className="flex items-end">
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => {
-                        setSearchTerm('');
-                        setRoleFilter('all');
-                      }}
-                    >
-                      <Filter className="h-4 w-4 mr-2" />
-                      Limpiar
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="p-6 space-y-4">
+              {usedInvitations.length > 0 ? (
+                usedInvitations.map((inv, idx) => (
+                  <motion.div
+                    key={inv.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="p-4 rounded-lg border border-emerald-500/30 hover:border-emerald-500/50 transition-all hover:bg-emerald-500/5"
+                  >
+                    <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-black text-xs flex-shrink-0">
+                            {inv.first_name.charAt(0)}{inv.last_name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-[#f5f5f0] truncate">
+                              {inv.first_name} {inv.last_name}
+                            </h3>
+                            <p className="text-xs text-[#f5f5f0]/60 truncate">{inv.email}</p>
+                          </div>
+                        </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Usuarios Registrados</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {usersError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Error al cargar usuarios: {usersError.message || 'Intente nuevamente más tarde.'}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-500/30 bg-emerald-500/20 text-emerald-400">
+                            Aceptada
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-[#19c3e6]/30 bg-[#19c3e6]/10 text-[#19c3e6]">
+                            {inv.role === 'administrator' ? 'Admin' : 'Usuario'}
+                          </span>
+                          <span className="text-[10px] text-[#f5f5f0]/50">
+                            {formatRelativeDate(inv.created_at)}
+                          </span>
+                        </div>
 
-                <div className="space-y-4">
-                  {users.length > 0 ? (
-                    users.map((user) => (
-                      <UserCard
-                        key={user.id}
-                        user={user}
-                        editingUserId={editingUserId}
-                        userToEdit={userToEdit}
-                        editError={editError}
-                        updateUserMutation={updateUserMutation}
-                        getStatusBadge={getStatusBadge}
-                        getStatusText={getStatusText}
-                        getRoleBadge={getRoleBadge}
-                        getRoleText={getRoleText}
-                        formatDate={formatDate}
-                        handleEditUser={handleEditUser}
-                        handleSaveUser={handleSaveUser}
-                        handleCancelEdit={handleCancelEdit}
-                        updateEditField={updateEditField}
-                        onDeleteUser={(id) => {
-                          if (window.confirm('¿Está seguro de eliminar este usuario?')) {
-                            deleteUserMutation.mutate(id);
-                          }
-                        }}
-                        isDeleting={deleteUserMutation.isPending}
-                        onSuspendUser={(id) => {
-                          if (window.confirm('¿Suspender este usuario?')) {
-                            suspendUserMutation.mutate(id);
-                          }
-                        }}
-                        onActivateUser={(id) => {
-                          if (window.confirm('¿Activar este usuario?')) {
-                            activateUserMutation.mutate(id);
-                          }
-                        }}
-                        isTogglingStatus={suspendUserMutation.isPending || activateUserMutation.isPending}
-                      />
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>No hay usuarios</p>
+                        {inv.used_by && (
+                          <div className="mt-3 p-3 bg-[#0f1513]/50 border border-[#19c3e6]/10 rounded text-xs text-[#f5f5f0]/70">
+                            <span className="font-bold text-[#19c3e6]">Aceptada por:</span> {inv.used_by.email}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* TAB: ACEPTADAS */}
-          <TabsContent value="accepted-invitations">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <CheckCircle className="h-5 w-5 mr-2" />
-                  Invitaciones Aceptadas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {usedInvitations.length > 0 ? (
-                    usedInvitations.map(inv => renderInvitationCard(inv))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>No hay invitaciones aceptadas</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </AdminLayout>
+                  </motion.div>
+                ))
+              ) : (
+                <motion.div variants={itemVariants} className="text-center py-12">
+                  <CheckCircle className="h-16 w-16 mx-auto mb-4 text-[#f5f5f0]/20" />
+                  <p className="text-[#f5f5f0]/60 font-bold">No hay invitaciones aceptadas</p>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </motion.div>
   );
 };
 

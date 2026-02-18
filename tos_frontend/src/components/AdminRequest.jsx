@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { adminAPI  } from '../lib/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { TreePine, Mail, User, Building, FileText, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { adminAPI } from '../lib/api';
+import { TreePine, Mail, User, Building, FileText, Send, CheckCircle, AlertCircle, Lock, FileCheck } from 'lucide-react';
 
 const AdminRequest = () => {
   const [formData, setFormData] = useState({
@@ -96,7 +92,6 @@ const AdminRequest = () => {
 
       // Manejo de diferentes tipos de errores
       if (error.response?.data) {
-        // Si el backend devuelve errores de validación
         setErrors(error.response.data);
       } else if (error.response?.status === 401) {
         setErrors({ general: 'No autorizado. Por favor inicie sesión.' });
@@ -167,305 +162,505 @@ const AdminRequest = () => {
   // PANTALLA DE ÉXITO
   if (showSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 px-4">
-        <div className="w-full max-w-2xl">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-12 flex flex-col items-center text-center">
-            <div className="bg-green-100 rounded-full p-4 mb-4 transform transition-transform animate-pulse">
-              <CheckCircle className="h-12 w-12 text-green-600" />
-            </div>
-            <h1 className="text-3xl font-extrabold text-gray-900 mb-2">¡Solicitud enviada!</h1>
-            <p className="text-gray-600 mb-6 max-w-xl">
-              Su solicitud para acceso de administrador ha sido enviada. En breve será revisada por el equipo. Recibirá una notificación por email.
-            </p>
+      <div 
+        className="min-h-screen relative overflow-hidden flex items-center justify-center px-4 py-8"
+        style={{
+          backgroundColor: "#1a2e05",
+          backgroundImage: `
+            radial-gradient(circle at 50% 50%, rgba(25, 195, 230, 0.05) 0%, transparent 50%),
+            linear-gradient(rgba(26, 46, 5, 0.95), rgba(26, 46, 5, 0.95))
+          `,
+          backgroundAttachment: "fixed"
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-md z-10"
+        >
+          <div 
+            className="rounded-2xl p-8 sm:p-12 flex flex-col items-center text-center border border-[#19c3e6]/20"
+            style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.8)"
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.3, type: "spring" }}
+              className="bg-[#19c3e6]/20 rounded-full p-6 mb-6 border border-[#19c3e6]/30"
+            >
+              <CheckCircle className="h-12 w-12 text-[#19c3e6]" />
+            </motion.div>
 
-            <div className="w-full grid gap-3 sm:grid-cols-2">
-              <Button onClick={() => navigate('/')} className="w-full">
-                Volver al inicio
-              </Button>
-              <Link to="/login" className="w-full">
-                <Button variant="outline" className="w-full">
-                  Ir al inicio de sesión
-                </Button>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <h1 className="text-3xl font-bold text-[#f5f5f0] mb-3">¡Solicitud Enviada!</h1>
+              <p className="text-[#f5f5f0]/60 mb-8 max-w-sm">
+                Su solicitud de acceso de administrador ha sido registrada exitosamente. El equipo la revisará en 1-3 días hábiles.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="w-full space-y-3"
+            >
+              <button
+                onClick={() => navigate('/')}
+                className="w-full bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-bold py-3 rounded-lg transition-all transform active:scale-[0.98] uppercase tracking-widest text-sm"
+                style={{
+                  boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
+                }}
+              >
+                Volver al Inicio
+              </button>
+
+              <Link to="/login" className="w-full block">
+                <button className="w-full border border-[#19c3e6]/20 hover:bg-[#19c3e6]/5 text-[#f5f5f0] font-bold py-3 rounded-lg transition-all uppercase tracking-widest text-sm">
+                  Ir al Inicio de Sesión
+                </button>
               </Link>
-            </div>
+            </motion.div>
 
-            <p className="mt-6 text-sm text-gray-500">Se le redirigirá automáticamente en unos segundos.</p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="mt-6 text-xs text-[#f5f5f0]/40"
+            >
+              Se le redirigirá automáticamente en unos segundos...
+            </motion.p>
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4 py-12">
-      <div className="w-full max-w-4xl">
+    <div 
+      className="min-h-screen relative overflow-hidden flex items-center justify-center px-4 py-8"
+      style={{
+        backgroundColor: "#1a2e05",
+        backgroundImage: `
+          radial-gradient(circle at 50% 50%, rgba(25, 195, 230, 0.05) 0%, transparent 50%),
+          linear-gradient(rgba(26, 46, 5, 0.95), rgba(26, 46, 5, 0.95))
+        `,
+        backgroundAttachment: "fixed"
+      }}
+    >
+      {/* SVG Decorativo */}
+      <div className="absolute right-0 top-20 opacity-10 hidden lg:block pointer-events-none">
+        <svg height="400" viewBox="0 0 200 200" width="400" xmlns="http://www.w3.org/2000/svg">
+          <path d="M100 20 Q110 60 140 80 T180 140" fill="none" stroke="#19c3e6" strokeWidth="0.5" />
+          <path d="M100 20 Q90 70 60 100 T20 160" fill="none" stroke="#19c3e6" strokeWidth="0.5" />
+          <circle cx="100" cy="20" fill="#19c3e6" r="2" />
+          <circle cx="140" cy="80" fill="#19c3e6" r="1.5" />
+          <circle cx="180" cy="140" fill="#19c3e6" r="2" />
+        </svg>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="w-full max-w-4xl relative z-10"
+      >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
           {/* Panel Lateral Informativo */}
-          <div className="hidden lg:flex flex-col items-start justify-center space-y-6 p-8 bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-600 rounded-lg">
-                <TreePine className="h-8 w-8 text-white" />
-              </div>
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="hidden lg:flex flex-col items-start justify-center space-y-8 p-8"
+          >
+            {/* Logo y Header */}
+            <div className="flex items-center gap-4 mb-4">
+              <TreePine className="h-8 w-8 text-[#19c3e6]" strokeWidth={3} />
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Árbol de la Ciencia</h2>
-                <p className="text-sm text-gray-600">Universidad Nacional de Colombia</p>
+                <h2 className="text-2xl font-bold text-[#f5f5f0]">Árbol de la Ciencia</h2>
+                <p className="text-xs text-[#19c3e6]/70 uppercase tracking-wider">Admin Portal</p>
               </div>
             </div>
 
-            <div className="text-gray-700">
-              <h3 className="text-lg font-semibold mb-2">Solicitud de administrador</h3>
-              <p className="text-sm">
-                Complete el formulario para solicitar acceso. El equipo revisará su petición y le notificará por correo.
+            <div>
+              <h3 className="text-xl font-bold text-[#f5f5f0] mb-3">Solicitud de Acceso</h3>
+              <p className="text-[#f5f5f0]/60 leading-relaxed text-sm">
+                Complete el formulario para solicitar acceso a la plataforma. El equipo revisará su petición y le notificará por correo electrónico en 1-3 días hábiles.
               </p>
             </div>
 
-            <ul className="text-sm text-gray-600 space-y-2">
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-1 flex-shrink-0" /> 
-                Revisión en 1-3 días hábiles
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-1 flex-shrink-0" /> 
-                Notificación por correo
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-1 flex-shrink-0" /> 
-                Recibirá token si es aprobado
-              </li>
-            </ul>
-          </div>
+            {/* Requisitos */}
+            <div className="space-y-4 w-full">
+              <div className="flex gap-4">
+                <div className="flex-none w-8 h-8 rounded bg-[#19c3e6]/10 flex items-center justify-center text-[#19c3e6]">
+                  <FileCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-[#f5f5f0] mb-1">Validación de Datos</h4>
+                  <p className="text-xs text-[#f5f5f0]/50">Todos los campos son obligatorios y serán verificados.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-none w-8 h-8 rounded bg-[#19c3e6]/10 flex items-center justify-center text-[#19c3e6]">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-[#f5f5f0] mb-1">Notificación por Email</h4>
+                  <p className="text-xs text-[#f5f5f0]/50">Recibirá respuesta en el email institucional.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-none w-8 h-8 rounded bg-[#19c3e6]/10 flex items-center justify-center text-[#19c3e6]">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-[#f5f5f0] mb-1">Seguridad Garantizada</h4>
+                  <p className="text-xs text-[#f5f5f0]/50">Datos encriptados y procesados de forma segura.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Status */}
+            <div 
+              className="w-full p-4 rounded-lg border border-[#19c3e6]/30"
+              style={{
+                background: "rgba(25, 195, 230, 0.05)"
+              }}
+            >
+              <p className="text-[10px] uppercase tracking-widest text-[#19c3e6] font-bold mb-2">Estado del Sistema</p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-xs text-[#f5f5f0]/60">Todos los Servicios Operacionales</span>
+              </div>
+            </div>
+
+            <p className="text-[9px] text-[#f5f5f0]/20 tracking-tighter">
+           © {new Date().getFullYear()} Universidad Nacional de Colombia. Todos los derechos reservados.
+            </p>
+          </motion.div>
 
           {/* FORMULARIO */}
-          <Card className="shadow-2xl rounded-2xl overflow-hidden">
-            <form onSubmit={handleSubmit} className="flex flex-col">
-              <CardHeader className="p-6 bg-white border-b">
-                <CardTitle className="text-2xl text-gray-900">Solicitud de Administrador</CardTitle>
-                <CardDescription className="text-sm text-gray-600">
-                  Todos los campos son obligatorios
-                </CardDescription>
-              </CardHeader>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="rounded-xl overflow-hidden border border-[#19c3e6]/20"
+            style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.8)"
+            }}
+          >
+            {/* Header */}
+            <div 
+              className="p-8 border-b border-[#19c3e6]/20"
+              style={{
+                background: "rgba(25, 195, 230, 0.05)"
+              }}
+            >
+              <h2 className="text-2xl font-bold text-[#f5f5f0] mb-2">Solicitud de Acceso</h2>
+              <p className="text-sm text-[#f5f5f0]/60">Todos los campos marcados con * son obligatorios</p>
+            </div>
 
-              <CardContent className="p-6 space-y-4 bg-white">
-                {/* Error General */}
-                {errors.general && (
-                  <Alert variant="destructive" className="mb-4 border-red-200 bg-red-50">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-red-800">{errors.general}</AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="space-y-4">
-                  {/* Nombre y Apellido */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="first_name" className="text-gray-700 font-medium">
-                        Nombre *
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="first_name"
-                          name="first_name"
-                          type="text"
-                          placeholder="Juan"
-                          value={formData.first_name}
-                          onChange={handleChange}
-                          className={`pl-10 ${errors.first_name ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                          aria-invalid={!!errors.first_name}
-                        />
-                      </div>
-                      {errors.first_name && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.first_name[0]}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="last_name" className="text-gray-700 font-medium">
-                        Apellido *
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="last_name"
-                          name="last_name"
-                          type="text"
-                          placeholder="Pérez"
-                          value={formData.last_name}
-                          onChange={handleChange}
-                          className={`pl-10 ${errors.last_name ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                          aria-invalid={!!errors.last_name}
-                        />
-                      </div>
-                      {errors.last_name && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.last_name[0]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Email */}
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-gray-700 font-medium">
-                      Correo Electrónico Institucional *
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="correo@unal.edu.co"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className={`pl-10 ${errors.email ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                        aria-invalid={!!errors.email}
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="text-sm text-red-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        {errors.email[0]}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Teléfono y Afiliación */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone" className="text-gray-700 font-medium">
-                        Teléfono de Contacto *
-                      </Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        placeholder="+57 300 123 4567"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className={`w-full ${errors.phone ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                        aria-invalid={!!errors.phone}
-                      />
-                      {errors.phone && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.phone[0]}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="affiliation" className="text-gray-700 font-medium">
-                        Afiliación Institucional *
-                      </Label>
-                      <div className="relative">
-                        <Building className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="affiliation"
-                          name="affiliation"
-                          type="text"
-                          placeholder="Universidad, departamento, cargo"
-                          value={formData.affiliation}
-                          onChange={handleChange}
-                          className={`pl-10 ${errors.affiliation ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                          aria-invalid={!!errors.affiliation}
-                        />
-                      </div>
-                      {errors.affiliation && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.affiliation[0]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Justificación */}
-                  <div className="space-y-2">
-                    <Label htmlFor="justification" className="text-gray-700 font-medium">
-                      Justificación para Acceso de Administrador *
-                    </Label>
-                    <div className="relative">
-                      <FileText className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <textarea
-                        id="justification"
-                        name="justification"
-                        placeholder="Explique por qué necesita acceso de administrador. Incluya su rol, responsabilidades y cómo planea usar el sistema."
-                        value={formData.justification}
-                        onChange={handleChange}
-                        className={`w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none min-h-[110px] ${
-                          errors.justification ? 'border-red-500 ring-1 ring-red-500' : ''
-                        }`}
-                        rows="5"
-                        aria-invalid={!!errors.justification}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      {errors.justification ? (
-                        <span className="text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.justification[0]}
-                        </span>
-                      ) : (
-                        <p className="text-gray-500">Mínimo 50 caracteres, máximo 500</p>
-                      )}
-                      <p className={`font-mono ${justLength < 50 ? 'text-red-600' : justLength > 500 ? 'text-red-600' : 'text-green-600'}`}>
-                        {justLength} / 500
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Info del Proceso */}
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <div className="flex items-start space-x-3">
-                      <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-blue-800">
-                        <p className="font-medium mb-1">Proceso de Solicitud</p>
-                        <p>
-                          Su solicitud será revisada por los administradores actuales. El proceso puede tomar entre 1-3 días hábiles. Recibirá una notificación por email.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-
-              {/* Footer con Botón */}
-              <CardFooter className="p-6 bg-gray-50 border-t flex flex-col gap-3">
-                <Button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  disabled={requestMutation.isPending}
-                  size="lg"
+            {/* Contenido Formulario */}
+            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+              {/* Error General */}
+              {errors.general && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 p-4 rounded-lg bg-red-500/10 border border-[#19c3e6]/20"
                 >
-                  {requestMutation.isPending ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Enviando solicitud...
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center">
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar Solicitud
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                  <p className="text-sm text-red-400">{errors.general}</p>
+                </motion.div>
+              )}
+
+              {/* Nombre y Apellido */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="grid grid-cols-2 gap-4"
+              >
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Nombre *
+                  </label>
+                  <input
+                    name="first_name"
+                    type="text"
+                    placeholder="Juan"
+                    value={formData.first_name}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none ${
+                      errors.first_name
+                        ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                        : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                    }`}
+                    style={{
+                      background: "rgba(26, 46, 5, 0.6)"
+                    }}
+                  />
+                  {errors.first_name && (
+                    <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                      <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                      {errors.first_name[0]}
                     </div>
                   )}
-                </Button>
+                </div>
 
-                <div className="text-center text-sm text-gray-600">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Apellido *
+                  </label>
+                  <input
+                    name="last_name"
+                    type="text"
+                    placeholder="Pérez"
+                    value={formData.last_name}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none ${
+                      errors.last_name
+                        ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                        : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                    }`}
+                    style={{
+                      background: "rgba(26, 46, 5, 0.6)"
+                    }}
+                  />
+                  {errors.last_name && (
+                    <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                      <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                      {errors.last_name[0]}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Email */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="space-y-3"
+              >
+                <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80 flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Correo Institucional *
+                </label>
+                <input
+                  name="email"
+                  type="email"
+                  placeholder="correo@unal.edu.co"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none ${
+                    errors.email
+                      ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                      : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                  }`}
+                  style={{
+                    background: "rgba(26, 46, 5, 0.6)"
+                  }}
+                />
+                {errors.email && (
+                  <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                    {errors.email[0]}
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Teléfono y Afiliación */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45 }}
+                className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+              >
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80">
+                    Teléfono *
+                  </label>
+                  <input
+                    name="phone"
+                    type="tel"
+                    placeholder="+57 300 123 4567"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none ${
+                      errors.phone
+                        ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                        : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                    }`}
+                    style={{
+                      background: "rgba(26, 46, 5, 0.6)"
+                    }}
+                  />
+                  {errors.phone && (
+                    <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                      <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                      {errors.phone[0]}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80 flex items-center gap-2">
+                    <Building className="w-4 h-4" />
+                    Afiliación *
+                  </label>
+                  <input
+                    name="affiliation"
+                    type="text"
+                    placeholder="Universidad, departamento, cargo"
+                    value={formData.affiliation}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none ${
+                      errors.affiliation
+                        ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                        : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                    }`}
+                    style={{
+                      background: "rgba(26, 46, 5, 0.6)"
+                    }}
+                  />
+                  {errors.affiliation && (
+                    <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                      <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                      {errors.affiliation[0]}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Justificación */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="space-y-3"
+              >
+                <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Justificación *
+                </label>
+                <textarea
+                  name="justification"
+                  placeholder="Explique por qué necesita acceso de administrador. Incluya su rol, responsabilidades y cómo planea usar el sistema."
+                  value={formData.justification}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none resize-none min-h-[120px] ${
+                    errors.justification
+                      ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                      : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                  }`}
+                  style={{
+                    background: "rgba(26, 46, 5, 0.6)"
+                  }}
+                />
+                <div className="flex items-center justify-between text-xs">
+                  {errors.justification ? (
+                    <div className="flex items-center gap-2 text-red-400">
+                      <AlertCircle className="w-3 h-3" />
+                      {errors.justification[0]}
+                    </div>
+                  ) : (
+                    <p className="text-[#f5f5f0]/50">Mínimo 50 caracteres, máximo 500</p>
+                  )}
+                  <p className={`font-mono ${justLength < 50 ? 'text-red-400' : justLength > 500 ? 'text-red-400' : 'text-[#19c3e6]'}`}>
+                    {justLength} / 500
+                  </p>
+                </div>
+              </motion.div>
+
+              {/* Info del Proceso */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
+                className="p-4 rounded-lg border border-[#19c3e6]/20"
+                style={{
+                  background: "rgba(25, 195, 230, 0.05)"
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-[#19c3e6] mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-[#19c3e6] mb-1">Proceso de Solicitud</p>
+                    <p className="text-[#f5f5f0]/60 text-xs">
+                      Su solicitud será revisada por los administradores. El proceso toma entre 1-3 días hábiles. Recibirá una notificación por correo electrónico.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Botones */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="pt-4 space-y-3"
+              >
+                <button
+                  type="submit"
+                  disabled={requestMutation.isPending}
+                  className="w-full bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-bold py-4 rounded-lg transition-all transform active:scale-[0.98] uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{
+                    boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
+                  }}
+                >
+                  {requestMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1a2e05]" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Enviar Solicitud
+                    </>
+                  )}
+                </button>
+
+                <div className="text-center text-sm text-[#f5f5f0]/60">
                   ¿Ya tiene una cuenta?{' '}
-                  <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                  <Link 
+                    to="/login" 
+                    className="text-[#19c3e6] hover:text-[#19c3e6]/80 font-medium transition-colors"
+                  >
                     Inicie sesión aquí
                   </Link>
                 </div>
-              </CardFooter>
+              </motion.div>
             </form>
-          </Card>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
+
+      {/* Footer Links */}
+      <motion.footer
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8 }}
+        className="fixed bottom-0 left-0 right-0 p-4 text-center space-y-4 pointer-events-none"
+      >
+      </motion.footer>
     </div>
   );
 };

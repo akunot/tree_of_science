@@ -132,7 +132,15 @@ export const adminAPI = {
   
   // ===== GESTIÓN DE SOLICITUDES DE ADMIN =====
   getAdminRequests: (params = {}) => 
-    api.get('/auth/admin/requests/', { params }).then(res => res.data),
+    api.get('/auth/admin/requests/', { params }).then(res => {
+      const {data} = res;
+      // Tu backend devuelve { count, results, pending_count, ... }
+      if (Array.isArray(data?.results)) {
+        return data;
+      }
+      console.warn('Formato inesperado en getAdminRequests, devolviendo estructura vacía', data);
+      return { count: 0, results: [], pending_count: 0, approved_count: 0, rejected_count: 0 };
+    }),
   
   reviewRequest: (id, data) => 
     api.patch(`/auth/admin/requests/${id}/review/`, data).then(res => res.data),

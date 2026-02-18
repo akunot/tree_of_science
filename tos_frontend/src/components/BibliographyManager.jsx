@@ -1,44 +1,26 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { bibliographyAPI } from '../lib/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { 
-  BookOpen, 
-  Upload, 
-  Search, 
-  Download, 
-  Trash2, 
+  BookOpen,
+  Upload,
+  Search,
+  Download,
+  Trash2,
   Calendar,
-  MoreHorizontal,
   FileText,
   File,
-  Plus
+  Plus,
+  MoreVertical,
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 const BibliographyManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const fileInputRef = useRef();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   // Consultar bibliografías
   const { data: bibliographies = [], isLoading, error } = useQuery({
@@ -48,45 +30,31 @@ const BibliographyManager = () => {
 
   // Mutación para subir archivo
   const uploadMutation = useMutation({
-    mutationFn: bibliographyAPI.upload,
+    mutationFn: (formData) => bibliographyAPI.upload(formData),
     onSuccess: () => {
-      queryClient.invalidateQueries(['bibliographies']);
-      toast({
-        title: "Archivo subido",
-        description: "La bibliografía ha sido subida exitosamente.",
-      });
+      queryClient.invalidateQueries({ queryKey: ['bibliographies'] });
+      alert('Archivo subido exitosamente');
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.response?.data?.archivo?.[0] || "No se pudo subir el archivo. Intente nuevamente.",
-        variant: "destructive",
-      });
+      alert('Error al subir el archivo: ' + (error.response?.data?.archivo?.[0] || 'Intente nuevamente'));
     },
   });
 
   // Mutación para eliminar bibliografía
   const deleteMutation = useMutation({
-    mutationFn: bibliographyAPI.delete,
+    mutationFn: (id) => bibliographyAPI.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries(['bibliographies']);
-      toast({
-        title: "Bibliografía eliminada",
-        description: "La bibliografía ha sido eliminada exitosamente.",
-      });
+      queryClient.invalidateQueries({ queryKey: ['bibliographies'] });
+      alert('Bibliografía eliminada exitosamente');
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar la bibliografía. Intente nuevamente.",
-        variant: "destructive",
-      });
+      alert('Error al eliminar la bibliografía. Intente nuevamente');
     },
   });
 
   // Mutación para descargar bibliografía
   const downloadMutation = useMutation({
-    mutationFn: bibliographyAPI.download,
+    mutationFn: (id) => bibliographyAPI.download(id),
     onSuccess: (response, id) => {
       const bibliography = bibliographies.find(b => b.id === id);
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -97,18 +65,9 @@ const BibliographyManager = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Descarga iniciada",
-        description: "El archivo se está descargando.",
-      });
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo descargar el archivo. Intente nuevamente.",
-        variant: "destructive",
-      });
+      alert('Error al descargar el archivo');
     },
   });
 
@@ -136,15 +95,21 @@ const BibliographyManager = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileUpload(e.dataTransfer.files);
     }
   };
 
-  const handleDelete = (id, name) => {
-    if (window.confirm(`¿Está seguro de que desea eliminar "${name}"?`)) {
-      deleteMutation.mutate(id);
+  const handleDelete = async (id, name) => {
+    const confirmed = window.confirm(`¿Está seguro de que desea eliminar "${name}"?`);
+    if (!confirmed) return;
+
+    setDeleteLoading(true);
+    try {
+      await deleteMutation.mutateAsync(id);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -162,26 +127,20 @@ const BibliographyManager = () => {
     });
   };
 
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   const getFileIcon = (filename) => {
     const extension = filename.split('.').pop()?.toLowerCase();
     switch (extension) {
       case 'pdf':
-        return <FileText className="h-4 w-4 text-red-600" />;
+        return <FileText className="h-5 w-5 text-red-500" />;
       case 'doc':
       case 'docx':
-        return <FileText className="h-4 w-4 text-blue-600" />;
+        return <FileText className="h-5 w-5 text-blue-500" />;
       case 'txt':
-        return <FileText className="h-4 w-4 text-gray-600" />;
+        return <FileText className="h-5 w-5 text-gray-500" />;
+      case 'csv':
+        return <FileText className="h-5 w-5 text-green-500" />;
       default:
-        return <File className="h-4 w-4 text-gray-600" />;
+        return <File className="h-5 w-5 text-gray-500" />;
     }
   };
 
@@ -190,263 +149,234 @@ const BibliographyManager = () => {
     bibliography.nombre_archivo?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center text-red-600">
-              Error al cargar las bibliografías
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const bibThisMonth = bibliographies.filter(bib => {
+    const bibDate = new Date(bib.fecha_subida);
+    const now = new Date();
+    return bibDate.getMonth() === now.getMonth() && 
+           bibDate.getFullYear() === now.getFullYear();
+  }).length;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-green-100 rounded-lg">
-            <BookOpen className="h-6 w-6 text-green-600" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Gestión de Bibliografías</h1>
-            <p className="text-gray-600 mt-1">
-              Suba y gestione sus archivos de referencia
-            </p>
-          </div>
-        </div>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center"
+      >
+        <h1 className="text-3xl md:text-4xl font-black text-[#f5f5f0] tracking-tight mb-3">
+          Gestor de Bibliografías
+        </h1>
+        <p className="text-[#f5f5f0]/60 text-sm md:text-base max-w-2xl mx-auto">
+          Suba, gestione y descargue sus archivos de referencia académica
+        </p>
+      </motion.div>
 
-      {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Archivos</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{bibliographies.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Este Mes</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {bibliographies.filter(bib => {
-                const bibDate = new Date(bib.fecha_subida);
-                const now = new Date();
-                return bibDate.getMonth() === now.getMonth() && 
-                       bibDate.getFullYear() === now.getFullYear();
-              }).length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tipos de Archivo</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(bibliographies.map(bib => 
-                bib.nombre_archivo.split('.').pop()?.toLowerCase()
-              )).size}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Zona de subida */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Subir Nueva Bibliografía</CardTitle>
-          <CardDescription>
-            Arrastre y suelte archivos o haga clic para seleccionar
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive 
-                ? 'border-blue-400 bg-blue-50' 
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <div className="space-y-2">
-              <p className="text-lg font-medium text-gray-900">
-                Subir archivos de bibliografía
-              </p>
-              <p className="text-gray-600">
-                Formatos soportados: TXT, CSV
-              </p>
-              <div className="flex justify-center">
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadMutation.isPending}
-                >
-                  {uploadMutation.isPending ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Subiendo...
-                    </div>
-                  ) : (
-                    <>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Seleccionar Archivo
-                    </>
-                  )}
-                </Button>
+      {/* Stats Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto"
+      >
+        {[
+          { label: 'Total de Archivos', value: bibliographies.length, icon: BookOpen },
+          { label: 'Este Mes', value: bibThisMonth, icon: Calendar },
+          { label: 'Tipos', value: new Set(bibliographies.map(bib => bib.nombre_archivo.split('.').pop()?.toLowerCase())).size, icon: FileText },
+        ].map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + idx * 0.1 }}
+              whileHover={{ y: -4 }}
+              className="p-6 rounded-xl border border-[#19c3e6]/20 transition-all duration-300"
+              style={{
+                background: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <Icon className="w-5 h-5 text-[#19c3e6]" />
+                <span className="text-[10px] font-bold text-[#19c3e6] px-2 py-1 bg-[#19c3e6]/10 rounded uppercase">
+                  {stat.label}
+                </span>
               </div>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept=".csv,.txt"
-              onChange={(e) => handleFileUpload(e.target.files)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+              <h4 className="text-4xl font-bold text-[#f5f5f0] tracking-tighter">{stat.value}</h4>
+            </motion.div>
+          );
+        })}
+      </motion.div>
 
-      {/* Barra de búsqueda */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Buscar Bibliografías</CardTitle>
-          <CardDescription>
-            Busque por nombre de archivo
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar archivos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Upload Zone */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <div
+          className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
+            dragActive
+              ? 'border-[#19c3e6] bg-[#19c3e6]/10'
+              : 'border-[#19c3e6]/30 hover:border-[#19c3e6]/50'
+          }`}
+          style={{
+            background: dragActive ? 'rgba(25, 195, 230, 0.05)' : 'rgba(25, 195, 230, 0.02)',
+          }}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <motion.div
+            animate={{ scale: dragActive ? 1.1 : 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Upload className="mx-auto h-16 w-16 text-[#19c3e6]/40 mb-4" />
+          </motion.div>
+          <h3 className="text-xl font-bold text-[#f5f5f0] mb-2 uppercase tracking-tight">
+            Zona de Subida
+          </h3>
+          <p className="text-[#f5f5f0]/60 text-sm mb-6">
+            Arrastra y suelta tus archivos o haz clic para seleccionar
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            className="px-6 py-3 bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-bold rounded-lg uppercase tracking-widest text-sm transition-all disabled:opacity-50"
+            style={{
+              boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
+            }}
+          >
+            {uploadMutation.isPending ? 'Subiendo...' : 'Seleccionar Archivo'}
+          </motion.button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e.target.files)}
+          />
+        </div>
+      </motion.div>
 
-      {/* Lista de bibliografías */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Archivos de Bibliografía ({filteredBibliographies.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredBibliographies.length === 0 ? (
-            <div className="text-center py-12">
-              <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {searchTerm ? 'No se encontraron archivos' : 'No hay bibliografías subidas'}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {searchTerm 
-                  ? 'Intente con otros términos de búsqueda'
-                  : 'Comience subiendo su primera bibliografía'
-                }
-              </p>
-              {!searchTerm && (
-                <Button onClick={() => fileInputRef.current?.click()}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Subir Primer Archivo
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Archivo</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Fecha de Subida</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredBibliographies.map((bibliography) => (
-                    <TableRow key={bibliography.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          {getFileIcon(bibliography.nombre_archivo)}
-                          <div>
-                            <div className="font-medium">{bibliography.nombre_archivo}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">
-                          {bibliography.nombre_archivo.split('.').pop()?.toUpperCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {formatDate(bibliography.fecha_subida)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleDownload(bibliography.id)}
-                              disabled={downloadMutation.isPending}
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Descargar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(bibliography.id, bibliography.nombre_archivo)}
-                              disabled={deleteMutation.isPending}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Search */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <div className="relative max-w-2xl mx-auto">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#f5f5f0]/40" />
+          <input
+            type="text"
+            placeholder="Buscar archivos de bibliografía..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 rounded-lg border border-[#19c3e6]/20 bg-[#19c3e6]/5 text-[#f5f5f0] placeholder-[#f5f5f0]/40 focus:border-[#19c3e6] focus:outline-none transition-all"
+          />
+        </div>
+      </motion.div>
+
+      {/* Bibliographies List */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="space-y-4"
+      >
+        <h3 className="text-lg font-bold text-[#f5f5f0] tracking-tight">
+          Bibliografías ({filteredBibliographies.length})
+        </h3>
+
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array(3).fill(0).map((_, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.1 }}
+                className="p-4 rounded-xl border border-[#19c3e6]/10 animate-pulse"
+                style={{ background: "rgba(25, 195, 230, 0.03)" }}
+              >
+                <div className="h-4 bg-[#19c3e6]/20 rounded w-1/3 mb-2"></div>
+                <div className="h-3 bg-[#19c3e6]/10 rounded w-1/4"></div>
+              </motion.div>
+            ))}
+          </div>
+        ) : filteredBibliographies.length === 0 ? (
+          <div className="text-center py-12 text-[#f5f5f0]/60">
+            <BookOpen className="mx-auto h-12 w-12 text-[#19c3e6]/30 mb-3" />
+            <p className="text-sm mb-3">
+              {searchTerm ? 'No se encontraron archivos' : 'No hay bibliografías subidas aún'}
+            </p>
+            {!searchTerm && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-[#19c3e6] text-[#1a2e05] font-bold rounded-lg text-sm inline-block"
+              >
+                Subir Primera Bibliografía
+              </motion.button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredBibliographies.map((bibliography, idx) => (
+              <motion.div
+                key={bibliography.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 + idx * 0.1 }}
+                whileHover={{ x: 4 }}
+                className="p-4 rounded-xl border border-[#19c3e6]/10 flex items-center gap-4 group transition-all"
+                style={{
+                  background: "rgba(25, 195, 230, 0.03)",
+                  backdropFilter: "blur(8px)"
+                }}
+              >
+                <div className="w-12 h-12 rounded-lg bg-[#19c3e6]/10 flex items-center justify-center text-[#19c3e6] border border-[#19c3e6]/20 flex-shrink-0">
+                  {getFileIcon(bibliography.nombre_archivo)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-[#f5f5f0] group-hover:text-[#19c3e6] transition-colors truncate">
+                    {bibliography.nombre_archivo}
+                  </h4>
+                  <p className="text-xs text-[#f5f5f0]/50 mt-1">
+                    {formatDate(bibliography.fecha_subida)}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    onClick={() => handleDownload(bibliography.id)}
+                    disabled={downloadMutation.isPending}
+                    className="p-2 rounded-lg hover:bg-[#19c3e6]/10 text-[#f5f5f0]/60 hover:text-[#19c3e6] transition-colors disabled:opacity-50"
+                    title="Descargar"
+                  >
+                    <Download className="w-4 h-4" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    onClick={() => handleDelete(bibliography.id, bibliography.nombre_archivo)}
+                    disabled={deleteLoading}
+                    className="p-2 rounded-lg hover:bg-red-500/10 text-[#f5f5f0]/60 hover:text-red-500 transition-colors disabled:opacity-50"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </motion.button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 };
 
 export default BibliographyManager;
-
