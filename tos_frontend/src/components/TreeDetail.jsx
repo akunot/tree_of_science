@@ -27,6 +27,7 @@ const TreeDetail = () => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [nodeFilter, setNodeFilter] = useState('all'); // 'all' | 'leaves' | 'trunks' | 'roots'
 
   const svgRef = useRef(null);
   const resizeObserver = useRef(null);
@@ -47,7 +48,7 @@ const TreeDetail = () => {
     return tree.arbol_json.statistics;
   }, [tree?.arbol_json?.statistics]);
 
-  // Nodos procesados
+  // Nodos procesados (todos)
   const processedNodes = useMemo(() => {
     if (!tree?.arbol_json?.nodes) return [];
     return tree.arbol_json.nodes.map((node, idx) => ({
@@ -56,6 +57,15 @@ const TreeDetail = () => {
       hasExternalLink: !!(node.url || node.doi || node.pmid || node.arxiv_id),
     }));
   }, [tree?.arbol_json?.nodes]);
+
+  // Nodos visibles según el filtro (para SVG y lista)
+  const filteredNodes = useMemo(() => {
+    if (nodeFilter === 'all') return processedNodes;
+    if (nodeFilter === 'roots') return processedNodes.filter(n => n.group === 'root');
+    if (nodeFilter === 'trunks') return processedNodes.filter(n => n.group === 'trunk');
+    if (nodeFilter === 'leaves') return processedNodes.filter(n => n.group === 'leaf');
+    return processedNodes;
+  }, [processedNodes, nodeFilter]);
 
   const containerRefCallback = useCallback((element) => {
     setContainerElement(element);
@@ -164,10 +174,10 @@ const TreeDetail = () => {
 
   // Layout D3
   const treeLayout = useMemo(() => {
-    if (!processedNodes.length || dimensions.width === 0) return { nodes: [], links: [] };
+    if (!filteredNodes.length || dimensions.width === 0) return { nodes: [], links: [] };
 
     const maxNodesForPhysics = 200;
-    const nodesToSimulate = processedNodes.slice(0, maxNodesForPhysics);
+    const nodesToSimulate = filteredNodes.slice(0, maxNodesForPhysics);
 
     const nodes = nodesToSimulate.map((d, i) => {
       const baseRadius = 6;
@@ -421,9 +431,9 @@ const TreeDetail = () => {
   const VISIBLE_ITEMS = Math.ceil(400 / ITEM_HEIGHT) + 2;
 
   const startIndex = Math.max(0, Math.floor(scrollOffset / ITEM_HEIGHT));
-  const endIndex = Math.min(processedNodes.length, startIndex + VISIBLE_ITEMS);
+  const endIndex = Math.min(filteredNodes.length, startIndex + VISIBLE_ITEMS);
 
-  const visibleNodes = processedNodes.slice(startIndex, endIndex);
+  const visibleNodes = filteredNodes.slice(startIndex, endIndex);
 
   // Renderizar nodo
   const renderNode = useCallback((node, index) => {
@@ -743,29 +753,61 @@ const TreeDetail = () => {
           <Layers className="h-5 w-5 text-[#19c3e6]" />
           Artículos en el Árbol
         </h2>
-        <p className="text-xs text-[#f5f5f0]/60">{processedNodes.length} artículos ordenados por relevancia - Click para abrir</p>
+        <p className="text-xs text-[#f5f5f0]/60">
+          {filteredNodes.length} artículos ordenados por relevancia - Click para abrir
+        </p>
 
-        {processedNodes.length > 0 ? (
-          <div
-            ref={listContainerRef}
-            className="rounded-xl border border-[#19c3e6]/20 p-4"
-            style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              backdropFilter: 'blur(12px)',
-              height: '400px',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-            }}
-            onScroll={(e) => setScrollOffset(e.currentTarget.scrollTop)}
-          >
-            <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
+        {filteredNodes.length > 0 ? (
+          <>
+            {/* Filtros de tipo de nodo (fuera del scroll) */}
+            <div className="flex gap-2 mb-3">
+              {[
+                { id: 'all', label: 'Todos' },
+                { id: 'leaves', label: 'Hojas' },
+                { id: 'trunks', label: 'Tronco' },
+                { id: 'roots', label: 'Raíces' },
+              ].map((btn) => (
+                <button
+                  key={btn.id}
+                  onClick={() => {
+                    setNodeFilter(btn.id);
+                    setScrollOffset(0);
+                    if (listContainerRef.current) {
+                      listContainerRef.current.scrollTop = 0;
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                    nodeFilter === btn.id
+                      ? 'bg-[#19c3e6] text-[#1a2e05] border-[#19c3e6]'
+                      : 'bg-transparent text-[#f5f5f0]/70 border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
 
-            {visibleNodes.map((node, i) =>
-              renderNode(node, startIndex + i)
-            )}
+            <div
+              ref={listContainerRef}
+              className="rounded-xl border border-[#19c3e6]/20 p-4"
+              style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                backdropFilter: 'blur(12px)',
+                height: '400px',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+              }}
+              onScroll={(e) => setScrollOffset(e.currentTarget.scrollTop)}
+            >
+              <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
 
-            <div style={{ height: `${(processedNodes.length - endIndex) * ITEM_HEIGHT}px` }} />
-          </div>
+              {visibleNodes.map((node, i) =>
+                renderNode(node, startIndex + i)
+              )}
+
+              <div style={{ height: `${(filteredNodes.length - endIndex) * ITEM_HEIGHT}px` }} />
+            </div>
+          </>
         ) : (
           <div className="text-center py-8 text-[#f5f5f0]/60">
             <p className="text-sm">No hay nodos disponibles</p>

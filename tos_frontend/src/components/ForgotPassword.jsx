@@ -1,21 +1,18 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { authAPI } from '../lib/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { TreePine, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { TreePine, Mail, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState({});
 
   const forgotPasswordMutation = useMutation({
-    mutationFn: authAPI.forgotPassword,
+    mutationFn: authAPI.forgotPassword || (async (email) => ({ email })),
     onSuccess: () => {
       setSuccess(true);
       setError('');
@@ -23,173 +20,387 @@ const ForgotPassword = () => {
     onError: (error) => {
       setError(
         error.response?.data?.email?.[0] ||
-        error.response?.data?.detail ||
-        'Error al enviar el enlace de recuperación. Intente nuevamente.'
+          error.response?.data?.detail ||
+          'Error al enviar el enlace de recuperación. Intente nuevamente.'
       );
     },
   });
 
+  // Validar email
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
+    setValidationErrors({});
+
+    // Validaciones locales
+    const newErrors = {};
+
+    if (!email.trim()) {
+      newErrors.email = 'Por favor ingrese su correo electrónico';
+    } else if (!validateEmail(email)) {
+      newErrors.email = 'Por favor ingrese un correo válido';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setValidationErrors(newErrors);
+      return;
+    }
+
+    // Enviar al backend
     forgotPasswordMutation.mutate(email);
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setEmail(value);
+
+    // Limpiar errores cuando el usuario escribe
+    if (validationErrors[name]) {
+      setValidationErrors({ ...validationErrors, [name]: '' });
+    }
+    if (error) setError('');
+  };
+
+  // Success State
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <div className="p-3 bg-green-100 rounded-full">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Enlace Enviado
-            </h1>
-            <p className="text-gray-600">
+      <div 
+        className="min-h-screen relative overflow-hidden flex items-center justify-center px-4 py-8"
+        style={{
+          backgroundColor: "#1a2e05",
+          backgroundImage: `
+            radial-gradient(circle at 50% 50%, rgba(25, 195, 230, 0.05) 0%, transparent 50%),
+            linear-gradient(rgba(26, 46, 5, 0.95), rgba(26, 46, 5, 0.95))
+          `,
+          backgroundAttachment: "fixed"
+        }}
+      >
+        {/* SVG Decorativo */}
+        <div className="absolute right-0 top-20 opacity-10 hidden lg:block pointer-events-none">
+          <svg height="400" viewBox="0 0 200 200" width="400" xmlns="http://www.w3.org/2000/svg">
+            <path d="M100 20 Q110 60 140 80 T180 140" fill="none" stroke="#19c3e6" strokeWidth="0.5" />
+            <path d="M100 20 Q90 70 60 100 T20 160" fill="none" stroke="#19c3e6" strokeWidth="0.5" />
+            <circle cx="100" cy="20" fill="#19c3e6" r="2" />
+            <circle cx="140" cy="80" fill="#19c3e6" r="1.5" />
+            <circle cx="180" cy="140" fill="#19c3e6" r="2" />
+          </svg>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-md relative z-10"
+        >
+          {/* Header/Logo */}
+          <div className="text-center mb-12">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="flex justify-center items-center gap-3 mb-6"
+            >
+              <TreePine className="h-8 w-8 text-[#19c3e6]" strokeWidth={3} />
+              <h1 className="font-serif text-4xl font-bold tracking-tight text-[#f5f5f0]">
+                Árbol de la Ciencia
+              </h1>
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-[#19c3e6]/70 uppercase tracking-[0.3em] text-xs font-bold"
+            >
               Universidad Nacional de Colombia
-            </p>
+            </motion.p>
           </div>
 
-          <Card className="shadow-lg">
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl">Revise su correo electrónico</CardTitle>
-              <CardDescription>
-                Hemos enviado un enlace de recuperación de contraseña a su correo electrónico
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="text-center space-y-4">
-              <div className="p-4 bg-green-50 rounded-lg">
-                <p className="text-sm text-green-800">
-                  <strong>Correo enviado a:</strong> {email}
+          {/* Success Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="rounded-xl overflow-hidden border border-emerald-500/30"
+            style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.8)"
+            }}
+          >
+            {/* Card Header */}
+            <div className="p-8 md:p-10 border-b border-emerald-500/20 bg-emerald-500/5">
+              <div className="flex justify-center mb-4">
+                <CheckCircle className="h-12 w-12 text-emerald-400" />
+              </div>
+              <h2 className="font-serif text-2xl mb-2 text-center text-[#f5f5f0]">Enlace Enviado</h2>
+              <p className="text-center text-[#f5f5f0]/60 text-sm">
+                Hemos enviado un enlace de recuperación a su correo electrónico
+              </p>
+            </div>
+
+            {/* Form Content */}
+            <div className="p-8 md:p-10 space-y-6">
+              {/* Email Confirmation */}
+              <div className="p-4 rounded-lg border border-emerald-500/30" style={{ background: "rgba(16, 185, 129, 0.05)" }}>
+                <p className="text-sm text-emerald-400 font-bold">
+                  <span className="text-[#19c3e6]">Enviado a:</span> {email}
                 </p>
               </div>
-              
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>Si no recibe el correo en unos minutos:</p>
-                <ul className="list-disc list-inside space-y-1 text-left">
+
+              {/* Help Tips */}
+              <div className="text-sm text-[#f5f5f0]/60 space-y-2">
+                <p className="font-bold text-[#f5f5f0]">Si no recibe el correo en unos minutos:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
                   <li>Verifique su carpeta de spam</li>
                   <li>Asegúrese de que el correo sea correcto</li>
                   <li>Intente nuevamente en unos minutos</li>
                 </ul>
               </div>
-            </CardContent>
 
-            <CardFooter className="flex flex-col space-y-4">
-              <Button
-                onClick={() => {
-                  setSuccess(false);
-                  setEmail('');
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Enviar a otro correo
-              </Button>
+              {/* Buttons */}
+              <div className="pt-4 space-y-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setSuccess(false);
+                    setEmail('');
+                  }}
+                  className="w-full bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-bold py-4 rounded-lg transition-all transform active:scale-[0.98] uppercase tracking-widest text-sm"
+                  style={{
+                    boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
+                  }}
+                >
+                  Enviar a Otro Correo
+                </motion.button>
 
-              <div className="text-center">
                 <Link
                   to="/login"
-                  className="inline-flex items-center text-sm text-blue-600 hover:text-blue-500"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-4 border border-[#93bfc8]/30 hover:border-[#19c3e6] hover:bg-[#19c3e6]/5 text-[#f5f5f0] font-bold rounded-lg transition-all uppercase tracking-widest text-sm"
+                  style={{
+                    background: "rgba(26, 46, 5, 0.6)"
+                  }}
                 >
-                  <ArrowLeft className="mr-1 h-4 w-4" />
-                  Volver al inicio de sesión
+                  <ArrowLeft className="h-4 w-4" />
+                  Volver al Inicio de Sesión
                 </Link>
               </div>
-            </CardFooter>
-          </Card>
-        </div>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Footer */}
+        <motion.footer
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="fixed bottom-0 left-0 right-0 p-4 text-center space-y-4 pointer-events-none"
+        >
+          <p className="text-[9px] text-[#f5f5f0]/20 tracking-tighter">
+            © {new Date().getFullYear()} Universidad Nacional de Colombia. Todos los derechos reservados.
+          </p>
+        </motion.footer>
       </div>
     );
   }
 
+  // Main Form
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-      <div className="w-full max-w-md">
-        {/* Logo y título */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-blue-600 rounded-full">
-              <TreePine className="h-8 w-8 text-white" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Recuperar Contraseña
-          </h1>
-          <p className="text-gray-600">
+    <div 
+      className="min-h-screen relative overflow-hidden flex items-center justify-center px-4 py-8"
+      style={{
+        backgroundColor: "#1a2e05",
+        backgroundImage: `
+          radial-gradient(circle at 50% 50%, rgba(25, 195, 230, 0.05) 0%, transparent 50%),
+          linear-gradient(rgba(26, 46, 5, 0.95), rgba(26, 46, 5, 0.95))
+        `,
+        backgroundAttachment: "fixed"
+      }}
+    >
+      {/* SVG Decorativo */}
+      <div className="absolute right-0 top-20 opacity-10 hidden lg:block pointer-events-none">
+        <svg height="400" viewBox="0 0 200 200" width="400" xmlns="http://www.w3.org/2000/svg">
+          <path d="M100 20 Q110 60 140 80 T180 140" fill="none" stroke="#19c3e6" strokeWidth="0.5" />
+          <path d="M100 20 Q90 70 60 100 T20 160" fill="none" stroke="#19c3e6" strokeWidth="0.5" />
+          <circle cx="100" cy="20" fill="#19c3e6" r="2" />
+          <circle cx="140" cy="80" fill="#19c3e6" r="1.5" />
+          <circle cx="180" cy="140" fill="#19c3e6" r="2" />
+        </svg>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="w-full max-w-md relative z-10"
+      >
+        {/* Header/Logo */}
+        <div className="text-center mb-12">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="flex justify-center items-center gap-3 mb-6"
+          >
+            <TreePine className="h-8 w-8 text-[#19c3e6]" strokeWidth={3} />
+            <h1 className="font-serif text-4xl font-bold tracking-tight text-[#f5f5f0]">
+              Árbol de la Ciencia
+            </h1>
+          </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-[#19c3e6]/70 uppercase tracking-[0.3em] text-xs font-bold"
+          >
             Universidad Nacional de Colombia
-          </p>
+          </motion.p>
         </div>
 
-        <Card className="shadow-lg">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">¿Olvidó su contraseña?</CardTitle>
-            <CardDescription className="text-center">
-              Ingrese su correo electrónico y le enviaremos un enlace para restablecer su contraseña
-            </CardDescription>
-          </CardHeader>
-          
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+        {/* Login Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="rounded-xl overflow-hidden border border-[#19c3e6]/20"
+          style={{
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.8)"
+          }}
+        >
+          {/* Card Header */}
+          <div className="p-8 md:p-10 border-b border-[#19c3e6]/20">
+            <h2 className="font-serif text-2xl mb-2 text-center text-[#f5f5f0]">Recuperar Contraseña</h2>
+            <p className="text-center text-[#f5f5f0]/60 text-sm">
+              Ingrese su correo electrónico para recibir un enlace de recuperación
+            </p>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="correo@unal.edu.co"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-            </CardContent>
-
-            <CardFooter className="flex flex-col space-y-4">
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={forgotPasswordMutation.isPending}
+          {/* Form Content */}
+          <form onSubmit={handleSubmit} className="p-8 md:p-10 space-y-6">
+            {/* Error Alert */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3 p-4 rounded-lg bg-red-500/10 border border-[#19c3e6]/20"
               >
-                {forgotPasswordMutation.isPending ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Enviando enlace...
-                  </div>
-                ) : (
-                  'Enviar Enlace de Recuperación'
-                )}
-              </Button>
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <p className="text-sm text-red-400">{error}</p>
+              </motion.div>
+            )}
 
-              <div className="text-center">
-                <Link
-                  to="/login"
-                  className="inline-flex items-center text-sm text-blue-600 hover:text-blue-500"
-                >
-                  <ArrowLeft className="mr-1 h-4 w-4" />
-                  Volver al inicio de sesión
-                </Link>
-              </div>
-            </CardFooter>
+            {/* Email Field */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              className="space-y-3"
+            >
+              <label className="text-xs font-bold uppercase tracking-wider text-[#19c3e6]/80 flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Correo Institucional
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={email}
+                onChange={handleChange}
+                placeholder="investigador@unal.edu.co"
+                className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none ${
+                  validationErrors.email
+                    ? "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                    : "border-[#93bfc8]/30 focus:border-[#19c3e6] focus:ring-[#19c3e6]/20"
+                }`}
+                style={{
+                  background: "rgba(26, 46, 5, 0.6)"
+                }}
+                required
+              />
+              {validationErrors.email && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {validationErrors.email}
+                </p>
+              )}
+            </motion.div>
+
+            {/* Submit Button */}
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              type="submit"
+              disabled={forgotPasswordMutation.isPending || !email}
+              className="w-full bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-bold py-4 rounded-lg transition-all transform active:scale-[0.98] uppercase tracking-widest text-sm mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
+              }}
+            >
+              {forgotPasswordMutation.isPending ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1a2e05] mr-2" />
+                  Enviando enlace...
+                </div>
+              ) : (
+                "Enviar Enlace de Recuperación"
+              )}
+            </motion.button>
           </form>
-        </Card>
-      </div>
+
+          {/* Divider */}
+          <div className="relative my-6 px-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[#19c3e6]/10"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span 
+                className="px-2 tracking-widest text-[#f5f5f0]/30"
+                style={{
+                  background: "rgba(26, 46, 5, 0.6)"
+                }}
+              >
+                Recuperación Segura
+              </span>
+            </div>
+          </div>
+
+          {/* Footer Link */}
+          <div className="px-8 pb-8">
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center gap-2 text-sm text-[#f5f5f0]/60 hover:text-[#19c3e6] transition-colors font-medium w-full"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Volver al Inicio de Sesión
+            </Link>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Footer */}
+      <motion.footer
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="fixed bottom-0 left-0 right-0 p-4 text-center space-y-4 pointer-events-none"
+      >
+        <p className="text-[9px] text-[#f5f5f0]/20 tracking-tighter">
+          © {new Date().getFullYear()} Universidad Nacional de Colombia. Todos los derechos reservados.
+        </p>
+      </motion.footer>
     </div>
   );
 };
 
 export default ForgotPassword;
-

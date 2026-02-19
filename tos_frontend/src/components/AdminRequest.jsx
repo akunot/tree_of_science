@@ -57,8 +57,8 @@ const AdminRequest = () => {
     // Validar justificación
     if (!formData.justification.trim()) {
       newErrors.justification = ['La justificación es obligatoria'];
-    } else if (formData.justification.trim().length < 50) {
-      newErrors.justification = ['La justificación debe tener al menos 50 caracteres'];
+    } else if (formData.justification.trim().length < 25) {
+      newErrors.justification = ['La justificación debe tener al menos 25 caracteres'];
     } else if (formData.justification.length > 500) {
       newErrors.justification = ['La justificación no puede exceder 500 caracteres'];
     }
@@ -287,7 +287,7 @@ const AdminRequest = () => {
               <TreePine className="h-8 w-8 text-[#19c3e6]" strokeWidth={3} />
               <div>
                 <h2 className="text-2xl font-bold text-[#f5f5f0]">Árbol de la Ciencia</h2>
-                <p className="text-xs text-[#19c3e6]/70 uppercase tracking-wider">Admin Portal</p>
+                <p className="text-xs text-[#19c3e6]/70 uppercase tracking-wider">Solicitud Portal</p>
               </div>
             </div>
 
@@ -562,7 +562,7 @@ const AdminRequest = () => {
                 </label>
                 <textarea
                   name="justification"
-                  placeholder="Explique por qué necesita acceso de administrador. Incluya su rol, responsabilidades y cómo planea usar el sistema."
+                  placeholder="Explique por qué necesita acceso a la plataforma. Incluya su rol, responsabilidades y cómo planea usar el sistema."
                   value={formData.justification}
                   onChange={handleChange}
                   className={`w-full px-4 py-3 rounded-lg text-sm placeholder:text-[#f5f5f0]/20 text-[#f5f5f0] transition-all border focus:ring-2 focus:outline-none resize-none min-h-[120px] ${
@@ -581,10 +581,10 @@ const AdminRequest = () => {
                       {errors.justification[0]}
                     </div>
                   ) : (
-                    <p className="text-[#f5f5f0]/50">Mínimo 50 caracteres, máximo 500</p>
+                      <p className="text-[#f5f5f0]/50">Mínimo 25 caracteres, máximo 500</p>
                   )}
-                  <p className={`font-mono ${justLength < 50 ? 'text-red-400' : justLength > 500 ? 'text-red-400' : 'text-[#19c3e6]'}`}>
-                    {justLength} / 500
+                  <p className={`font-mono ${justLength < 25 ? 'text-red-400' : justLength > 500 ? 'text-red-400' : 'text-[#19c3e6]'}`}>
+                  {justLength} / 500
                   </p>
                 </div>
               </motion.div>

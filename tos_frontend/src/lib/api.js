@@ -130,7 +130,13 @@ export const adminAPI = {
   copyInvitationToken: (id) => 
     api.get(`/auth/admin/invitations/${id}/token/`).then(res => res.data),
   
-  // ===== GESTIÓN DE SOLICITUDES DE ADMIN =====
+    // ===== GESTIÓN DE SOLICITUDES DE ADMIN =====
+
+  // Enviar una nueva solicitud de acceso de administrador (lo usa AdminRequest.jsx)
+  submitRequest: (data) =>
+    api.post('/auth/request-admin/', data).then(res => res.data),
+
+  // Listar solicitudes para el panel de administración
   getAdminRequests: (params = {}) => 
     api.get('/auth/admin/requests/', { params }).then(res => {
       const {data} = res;
@@ -141,7 +147,8 @@ export const adminAPI = {
       console.warn('Formato inesperado en getAdminRequests, devolviendo estructura vacía', data);
       return { count: 0, results: [], pending_count: 0, approved_count: 0, rejected_count: 0 };
     }),
-  
+
+  // Aprobar / rechazar una solicitud
   reviewRequest: (id, data) => 
     api.patch(`/auth/admin/requests/${id}/review/`, data).then(res => res.data),
   
@@ -151,6 +158,16 @@ export const adminAPI = {
   
   updateSettings: (data) => 
     api.patch('/auth/admin/settings/', data).then(res => res.data),
+
+  // ===== HERRAMIENTAS DE BASE DE DATOS =====
+  backupDatabase: () =>
+    api.post('/auth/admin/db/backup/').then(res => res.data),
+
+  optimizeDatabase: () =>
+    api.post('/auth/admin/db/optimize/').then(res => res.data),
+
+  cleanExpiredInvitations: () =>
+    api.post('/auth/admin/db/clean-expired-invitations/').then(res => res.data),
 };
 
 // ===== API DE BIBLIOGRAFÍA =====

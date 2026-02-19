@@ -12,9 +12,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables desde el archivo .env
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -205,12 +210,13 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # Email configuration (para recuperación de contraseña y envío de invitaciones)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Para desarrollo
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = ''  # Configurar en producción
-EMAIL_HOST_PASSWORD = ''  # Configurar en producción
+EMAIL_HOST_USER = os.getenv('CORREO', '')
+EMAIL_HOST_PASSWORD = os.getenv('PASSWORD', '')    # <-- y aquí tu contraseña de aplicación de Gmail
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Custom user model
 AUTH_USER_MODEL = 'authentication.User'

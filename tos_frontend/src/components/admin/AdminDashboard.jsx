@@ -79,10 +79,11 @@ const AdminDashboard = () => {
     ? adminRequests.results
     : [];
 
-  // Solo mostramos solicitudes NO aprobadas (pending / rejected / otras)
+  // Solo mostramos solicitudes PENDIENTES
   const rawRequests = allRequests.filter(
-    (req) => req.status !== 'approved'
+    (req) => req.status === 'pending'
   );
+
 
   // Lista filtrada por texto (nombre/email) sobre las NO aprobadas
   const filteredRequests = rawRequests.filter((req) => {
@@ -338,7 +339,7 @@ const AdminDashboard = () => {
         {/* Footer */}
         <div className="p-4 bg-[#0f1513]/30 border-t border-[#19c3e6]/10 flex items-center justify-between text-[11px] text-[#f5f5f0]/60 flex-col sm:flex-row gap-4">
           <p>
-            Mostrando {filteredRequests.length} de {rawRequests.length} solicitudes no aprobadas
+            Mostrando {filteredRequests.length} de {rawRequests.length} solicitudes pendientes
           </p>
           
           <div className="flex gap-2">

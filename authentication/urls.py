@@ -49,13 +49,22 @@ urlpatterns = [
     path('admin/requests/<int:request_id>/review/', views.review_admin_request, name='review_admin_request'),
     
     # URLs de administración (solo para administradores)
-    # URLs de administración (solo para administradores)
     path('admin/create-invitation/', views.create_invitation, name='create_invitation'),
+
     # GET: listar invitaciones
     path('admin/invitations/', views.get_invitations, name='get_invitations'),
+
     # POST: crear invitación (reusa send_invitation)
     path('admin/invitations/create/', views.send_invitation, name='admin_send_invitation'),
     path('admin/invitations/<int:invitation_id>/', views.revoke_invitation, name='revoke_invitation'),
     path('admin/stats/', views.get_dashboard_stats, name='get_dashboard_stats'),
-    path('admin/activity/', views.get_recent_activity, name='get_recent_activity')
+    path('admin/activity/', views.get_recent_activity, name='get_recent_activity'),
+
+    # Configuraciones del sistema
+    path('admin/settings/', views.system_settings, name='system_settings'),
+
+    # Herramientas de base de datos
+    path('admin/db/backup/', views.db_backup, name='db_backup'),
+    path('admin/db/optimize/', views.db_optimize, name='db_optimize'),
+    path('admin/db/clean-expired-invitations/', views.db_clean_expired_invitations, name='db_clean_expired_invitations'),
 ]

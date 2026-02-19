@@ -19,38 +19,29 @@ import {
 
 const AdminSettings = () => {
   const [settings, setSettings] = useState({
-    system_name: 'Árbol de la Ciencia',
-    institution_name: 'Universidad Nacional de Colombia',
-    allow_registration: false,
-    admin_approval_required: true,
-    invitation_expiry_days: 30,
-    max_invitations_per_admin: 10,
-    email_notifications: true,
     system_maintenance: false,
-    session_timeout: 30,
-    password_min_length: 12,
-    max_file_size: 50,
-    items_per_page: 25,
-    force_password_change: true,
   });
 
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  const [toolsMessage, setToolsMessage] = useState('');
+  const [toolsError, setToolsError] = useState('');
 
   const queryClient = useQueryClient();
 
   const { data: systemSettings, isLoading } = useQuery({
     queryKey: ['admin-settings'],
     queryFn: async () => {
-      if (!adminAPI.getSystemSettings) {
+      if (!adminAPI.getSettings) {
         return settings;
       }
-      return await adminAPI.getSystemSettings();
+      return await adminAPI.getSettings();
     },
   });
 
   const updateSettingsMutation = useMutation({
-    mutationFn: adminAPI.updateSystemSettings || (async (data) => data),
+    mutationFn: adminAPI.updateSettings || (async (data) => data),
     onSuccess: () => {
       setSaved(true);
       setSaveError(null);
@@ -63,14 +54,56 @@ const AdminSettings = () => {
 
   const backupMutation = useMutation({
     mutationFn: adminAPI.backupDatabase || (async () => ({ success: true })),
+    onSuccess: (data) => {
+      setToolsError('');
+      setToolsMessage(data?.message || 'Backup creado correctamente.');
+      setTimeout(() => setToolsMessage(''), 4000);
+    },
+    onError: (error) => {
+      setToolsMessage('');
+      setToolsError(
+        error.response?.data?.error ||
+        error.message ||
+        'Error al crear el backup.'
+      );
+      setTimeout(() => setToolsError(''), 4000);
+    },
   });
 
   const optimizeMutation = useMutation({
     mutationFn: adminAPI.optimizeDatabase || (async () => ({ success: true })),
+    onSuccess: (data) => {
+      setToolsError('');
+      setToolsMessage(data?.message || 'Base de datos optimizada correctamente.');
+      setTimeout(() => setToolsMessage(''), 4000);
+    },
+    onError: (error) => {
+      setToolsMessage('');
+      setToolsError(
+        error.response?.data?.error ||
+        error.message ||
+        'Error al optimizar la base de datos.'
+      );
+      setTimeout(() => setToolsError(''), 4000);
+    },
   });
 
   const cleanMutation = useMutation({
     mutationFn: adminAPI.cleanExpiredInvitations || (async () => ({ success: true })),
+    onSuccess: (data) => {
+      setToolsError('');
+      setToolsMessage(data?.message || 'Invitaciones expiradas limpiadas correctamente.');
+      setTimeout(() => setToolsMessage(''), 4000);
+    },
+    onError: (error) => {
+      setToolsMessage('');
+      setToolsError(
+        error.response?.data?.error ||
+        error.message ||
+        'Error al limpiar invitaciones expiradas.'
+      );
+      setTimeout(() => setToolsError(''), 4000);
+    },
   });
 
   React.useEffect(() => {
@@ -89,6 +122,8 @@ const AdminSettings = () => {
       [key]: value,
     }));
     setSaveError(null);
+    setToolsMessage('');
+    setToolsError('');
   };
 
   const containerVariants = {
@@ -109,7 +144,7 @@ const AdminSettings = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[50vh]">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -129,7 +164,7 @@ const AdminSettings = () => {
       {/* Header */}
       <motion.div variants={itemVariants} className="mb-8 flex justify-between items-start flex-col sm:flex-row gap-4">
         <div>
-          <h1 className="text-4xl md:text-3xl font-black text-[#f5f5f0] tracking-tight">
+          <h1 className="text-3xl md:text-4xl font-black text-[#f5f5f0] tracking-tight">
             Configuraciones del Sistema
           </h1>
           <p className="text-[#f5f5f0]/60 text-sm md:text-base mt-2">
@@ -175,7 +210,7 @@ const AdminSettings = () => {
         </motion.div>
       )}
 
-      {/* Notificación de error */}
+      {/* Notificación de error al guardar configuraciones */}
       {saveError && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -188,306 +223,82 @@ const AdminSettings = () => {
         </motion.div>
       )}
 
-      {/* Settings Grid */}
+      {/* Feedback de herramientas de base de datos */}
+      {toolsMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="p-4 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-3 text-emerald-400"
+        >
+          <CheckCircle className="h-5 w-5 flex-shrink-0" />
+          <p className="font-bold text-sm">{toolsMessage}</p>
+        </motion.div>
+      )}
+
+      {toolsError && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="p-4 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center gap-3 text-rose-400"
+        >
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <p className="font-bold text-sm">{toolsError}</p>
+        </motion.div>
+      )}
+
+      {/* Bloque simple de Modo Mantenimiento */}
       <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        variants={itemVariants}
+        className="p-6 rounded-xl border border-[#19c3e6]/20"
+        style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          backdropFilter: 'blur(12px)',
+        }}
       >
-        {/* Configuraciones Generales */}
-        <motion.div
-          variants={itemVariants}
-          className="p-6 rounded-xl border border-[#19c3e6]/20"
-          style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Settings className="h-5 w-5 text-[#19c3e6]" />
-            <h2 className="text-lg font-black text-[#f5f5f0]">Configuraciones Generales</h2>
-          </div>
+        <div className="flex items-center gap-3 mb-6">
+          <Settings className="h-5 w-5 text-[#19c3e6]" />
+          <h2 className="text-lg font-black text-[#f5f5f0]">Modo de Mantenimiento</h2>
+        </div>
 
-          <div className="space-y-4">
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-[#19c3e6]/5 border border-[#19c3e6]/10 flex items-center justify-between">
             <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Nombre del Sistema
-              </label>
-              <input
-                type="text"
-                value={settings.system_name}
-                onChange={(e) => handleSettingChange('system_name', e.target.value)}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
-              />
+              <p className="text-sm font-bold text-[#f5f5f0]">Activar modo mantenimiento</p>
+              <p className="text-xs text-[#f5f5f0]/60 mt-1">
+                Cuando está activo, solo los administradores pueden iniciar sesión en la plataforma.
+              </p>
             </div>
-
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Nombre de la Institución
-              </label>
-              <input
-                type="text"
-                value={settings.institution_name}
-                onChange={(e) => handleSettingChange('institution_name', e.target.value)}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
-              />
-            </div>
-
-            {/* Toggle: Permitir Registro */}
-            <div className="p-4 rounded-lg bg-[#19c3e6]/5 border border-[#19c3e6]/10 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[#f5f5f0]">Permitir Registro Libre</p>
-                <p className="text-xs text-[#f5f5f0]/60 mt-1">Permite registro directo sin invitación</p>
-              </div>
-              <button
-                onClick={() => handleSettingChange('allow_registration', !settings.allow_registration)}
-                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
-                  settings.allow_registration ? 'bg-[#19c3e6]' : 'bg-[#f5f5f0]/20'
+            <button
+              onClick={() =>
+                handleSettingChange('system_maintenance', !settings.system_maintenance)
+              }
+              className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
+                settings.system_maintenance ? 'bg-rose-500' : 'bg-[#f5f5f0]/20'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-[#0f1513] transition-transform ${
+                  settings.system_maintenance ? 'translate-x-6' : 'translate-x-1'
                 }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-[#0f1513] transition-transform ${
-                    settings.allow_registration ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Toggle: Aprobación Admin */}
-            <div className="p-4 rounded-lg bg-[#19c3e6]/5 border border-[#19c3e6]/10 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[#f5f5f0]">Aprobación de Administrador</p>
-                <p className="text-xs text-[#f5f5f0]/60 mt-1">Nuevos admins requieren aprobación</p>
-              </div>
-              <button
-                onClick={() => handleSettingChange('admin_approval_required', !settings.admin_approval_required)}
-                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
-                  settings.admin_approval_required ? 'bg-[#19c3e6]' : 'bg-[#f5f5f0]/20'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-[#0f1513] transition-transform ${
-                    settings.admin_approval_required ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Configuraciones de Invitaciones */}
-        <motion.div
-          variants={itemVariants}
-          className="p-6 rounded-xl border border-[#19c3e6]/20"
-          style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Mail className="h-5 w-5 text-[#19c3e6]" />
-            <h2 className="text-lg font-black text-[#f5f5f0]">Configuraciones de Invitaciones</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Días de Expiración
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="365"
-                value={settings.invitation_expiry_days}
-                onChange={(e) => handleSettingChange('invitation_expiry_days', parseInt(e.target.value))}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
               />
-              <p className="text-xs text-[#f5f5f0]/50 mt-1">Los tokens expiran después de estos días</p>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Máximo de Invitaciones por Admin
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={settings.max_invitations_per_admin}
-                onChange={(e) => handleSettingChange('max_invitations_per_admin', parseInt(e.target.value))}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
-              />
-              <p className="text-xs text-[#f5f5f0]/50 mt-1">Límite de invitaciones activas</p>
-            </div>
-
-            {/* Toggle: Notificaciones Email */}
-            <div className="p-4 rounded-lg bg-[#19c3e6]/5 border border-[#19c3e6]/10 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[#f5f5f0]">Notificaciones por Email</p>
-                <p className="text-xs text-[#f5f5f0]/60 mt-1">Emails automáticos para eventos</p>
-              </div>
-              <button
-                onClick={() => handleSettingChange('email_notifications', !settings.email_notifications)}
-                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
-                  settings.email_notifications ? 'bg-[#19c3e6]' : 'bg-[#f5f5f0]/20'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-[#0f1513] transition-transform ${
-                    settings.email_notifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Configuraciones de Seguridad */}
-        <motion.div
-          variants={itemVariants}
-          className="p-6 rounded-xl border border-[#19c3e6]/20"
-          style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Shield className="h-5 w-5 text-[#19c3e6]" />
-            <h2 className="text-lg font-black text-[#f5f5f0]">Configuraciones de Seguridad</h2>
+            </button>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Tiempo de Sesión (minutos)
-              </label>
-              <select
-                value={settings.session_timeout}
-                onChange={(e) => handleSettingChange('session_timeout', parseInt(e.target.value))}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] appearance-none font-bold"
-              >
-                <option value="15" className="bg-[#0f1513]">15 minutos</option>
-                <option value="30" className="bg-[#0f1513]">30 minutos</option>
-                <option value="60" className="bg-[#0f1513]">1 hora</option>
-                <option value="120" className="bg-[#0f1513]">2 horas</option>
-                <option value="480" className="bg-[#0f1513]">8 horas</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Longitud Mínima de Contraseña
-              </label>
-              <input
-                type="number"
-                min="6"
-                max="50"
-                value={settings.password_min_length}
-                onChange={(e) => handleSettingChange('password_min_length', parseInt(e.target.value))}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
-              />
-            </div>
-
-            {/* Toggle: Forzar Cambio de Contraseña */}
-            <div className="p-4 rounded-lg bg-[#19c3e6]/5 border border-[#19c3e6]/10 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[#f5f5f0]">Forzar Cambio de Contraseña</p>
-                <p className="text-xs text-[#f5f5f0]/60 mt-1">Cambiar contraseña en primer login</p>
-              </div>
-              <button
-                onClick={() => handleSettingChange('force_password_change', !settings.force_password_change)}
-                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
-                  settings.force_password_change ? 'bg-[#19c3e6]' : 'bg-[#f5f5f0]/20'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-[#0f1513] transition-transform ${
-                    settings.force_password_change ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Configuraciones del Sistema */}
-        <motion.div
-          variants={itemVariants}
-          className="p-6 rounded-xl border border-[#19c3e6]/20"
-          style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Database className="h-5 w-5 text-[#19c3e6]" />
-            <h2 className="text-lg font-black text-[#f5f5f0]">Configuraciones del Sistema</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Tamaño Máximo de Archivo (MB)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="1000"
-                value={settings.max_file_size}
-                onChange={(e) => handleSettingChange('max_file_size', parseInt(e.target.value))}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] placeholder-[#f5f5f0]/40"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-[#f5f5f0]/70 uppercase tracking-wider block mb-2">
-                Elementos por Página
-              </label>
-              <select
-                value={settings.items_per_page}
-                onChange={(e) => handleSettingChange('items_per_page', parseInt(e.target.value))}
-                className="w-full bg-[#19c3e6]/5 border border-[#19c3e6]/20 rounded-lg px-4 py-2.5 text-sm focus:border-[#19c3e6] focus:outline-none transition-all text-[#f5f5f0] appearance-none font-bold"
-              >
-                <option value="10" className="bg-[#0f1513]">10</option>
-                <option value="25" className="bg-[#0f1513]">25</option>
-                <option value="50" className="bg-[#0f1513]">50</option>
-                <option value="100" className="bg-[#0f1513]">100</option>
-              </select>
-            </div>
-
-            {/* Toggle: Modo Mantenimiento */}
-            <div className="p-4 rounded-lg bg-[#19c3e6]/5 border border-[#19c3e6]/10 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[#f5f5f0]">Modo de Mantenimiento</p>
-                <p className="text-xs text-[#f5f5f0]/60 mt-1">Solo admins pueden acceder</p>
-              </div>
-              <button
-                onClick={() => handleSettingChange('system_maintenance', !settings.system_maintenance)}
-                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
-                  settings.system_maintenance ? 'bg-rose-500' : 'bg-[#f5f5f0]/20'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-[#0f1513] transition-transform ${
-                    settings.system_maintenance ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {settings.system_maintenance && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center gap-3 text-rose-400"
-              >
-                <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                <p className="text-xs font-bold">Sistema en modo mantenimiento</p>
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
+          {settings.system_maintenance && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center gap-3 text-rose-400"
+            >
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <p className="text-xs font-bold">
+                Sistema en modo mantenimiento: solo administradores pueden iniciar sesión.
+              </p>
+            </motion.div>
+          )}
+        </div>
       </motion.div>
 
       {/* Database Management Section */}

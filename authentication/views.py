@@ -4,6 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.conf import settings
@@ -205,7 +207,24 @@ def register(request):
 def login(request):
     """
     Inicio de sesión de usuario - VERSIÓN CORREGIDA
+    Si system_maintenance = True, solo admins pueden iniciar sesión.
     """
+    # Chequeo de modo mantenimiento
+    email = (request.data.get('email') or '').strip().lower()
+    if maintenance := CURRENT_SYSTEM_SETTINGS.get("system_maintenance", False):
+        user = None
+        with contextlib.suppress(User.DoesNotExist):
+            user = User.objects.get(email=email)
+
+        # Si no es admin, bloqueamos
+        if not (user and (user.is_staff or getattr(user, "is_admin", False))):
+            return Response(
+                {
+                    "error": "El sistema está en mantenimiento. Solo administradores pueden iniciar sesión."
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
     serializer = UserLoginSerializer(data=request.data)
 
     if serializer.is_valid():
@@ -375,7 +394,7 @@ def forgot_password(request):
             token = default_token_generator.make_token(user)
 
             # URL de recuperación
-            reset_url = f"http://localhost:3000/reset-password?token={token}&user_id={user.id}"
+            reset_url = f"http://localhost:5173/reset-password?token={token}&user_id={user.id}"
 
             # Enviar email
             send_mail(
@@ -424,7 +443,7 @@ def reset_password(request):
     if serializer.is_valid():
         token = serializer.validated_data['token']
         new_password = serializer.validated_data['new_password']
-        user_id = request.data.get('user_id')
+        user_id = serializer.validated_data['user_id']
         
         try:
             user = User.objects.get(id=user_id)
@@ -904,27 +923,23 @@ def get_admin_requests(request):
 def review_admin_request(request, request_id):
     """
     Revisa y decide sobre una solicitud de administrador
-    PATCH /api/auth/admin/requests/<request_id>/review/
-    
-    Body esperado:
-    {
-        "status": "approved" o "rejected",
-        "review_notes": "Notas opcionales sobre la decisión"
-    }
+    PATCH /auth/admin/requests/<request_id>/review/
     """
-    
+
     try:
         admin_request = AdminRequest.objects.get(id=request_id)
     except AdminRequest.DoesNotExist:
-        return Response({
-            'error': 'Solicitud no encontrada'
-        }, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {'error': 'Solicitud no encontrada'},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
     # Validar que no haya sido revisada ya
     if admin_request.status != 'pending':
-        return Response({
-            'error': 'Esta solicitud ya ha sido revisada'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Esta solicitud ya ha sido revisada'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     # Obtener datos de la solicitud
     new_status = request.data.get('status')
@@ -932,9 +947,10 @@ def review_admin_request(request, request_id):
 
     # Validar estado
     if new_status not in ['approved', 'rejected']:
-        return Response({
-            'error': 'Estado inválido. Use "approved" o "rejected"'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Estado inválido. Use "approved" o "rejected"'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     try:
         # Actualizar solicitud
@@ -954,24 +970,67 @@ def review_admin_request(request, request_id):
                     inviter=request.user,
                     message='Has sido invitado a ser administrador de Árbol de la Ciencia',
                 )
-                invitation_url = f"http://localhost:3000/register?token={invitation.token}"
+                invitation_url = f"http://localhost:5173/register?token={invitation.token}"
             except Exception as e:
                 print(f"⚠️ Error creando invitación: {e}")
+
+        # Enviar correo de notificación al solicitante
+        try:
+            subject = "Resultado de tu solicitud de usuario - Árbol de la Ciencia"
+            if new_status == 'approved':
+                extra = ""
+                if invitation_url:
+                    extra = (
+                        "\nPuedes completar tu registro en el siguiente enlace:\n"
+                        f"{invitation_url}\n"
+                    )
+
+                message = (
+                    f"Hola {admin_request.first_name},\n\n"
+                    "Tu solicitud de acceso como usuario en Árbol de la Ciencia ha sido APROBADA.\n\n"
+                    "Se ha generado una invitación para que completes tu registro en la plataforma."
+                    f"{extra}\n"
+                    "Atentamente,\n"
+                    "Equipo Árbol de la Ciencia"
+                )
+            else:
+                message = (
+                    f"Hola {admin_request.first_name},\n\n"
+                    "Tu solicitud de acceso como usuario en Árbol de la Ciencia ha sido RECHAZADA.\n\n"
+                    "Si consideras que se trata de un error, puedes contactar con el equipo administrador.\n\n"
+                    "Atentamente,\n"
+                    "Equipo Árbol de la Ciencia"
+                )
+
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[admin_request.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            # No romper la API si el envío de email falla
+            print(f"⚠️ Error enviando correo de revisión de solicitud: {e}")
 
         # Serializar la solicitud actualizada
         serializer = AdminRequestSerializer(admin_request)
 
-        return Response({
-            'success': True,
-            'message': f'Solicitud {new_status}',
-            'data': serializer.data,
-            'invitation_url': invitation_url
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {
+                'success': True,
+                'message': f'Solicitud {new_status}',
+                'data': serializer.data,
+                'invitation_url': invitation_url,
+            },
+            status=status.HTTP_200_OK
+        )
 
     except Exception as e:
-        return Response({
-            'error': f'Error al procesar solicitud: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {'error': f'Error al procesar solicitud: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
     
 @api_view(['POST'])
@@ -1133,4 +1192,138 @@ def get_recent_activity(request):
     serializer = UserActivitySerializer(activities, many=True)
     return Response(serializer.data)
 
-    
+# Valores por defecto (coinciden con AdminSettings.jsx)
+SYSTEM_SETTINGS_DEFAULTS = {
+    "system_maintenance": False,
+}
+
+# Configuración en memoria (para desarrollo)
+CURRENT_SYSTEM_SETTINGS = SYSTEM_SETTINGS_DEFAULTS.copy()
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def system_settings(request):
+    """
+    GET  /auth/admin/settings/  -> devuelve configuración actual
+    PATCH /auth/admin/settings/ -> actualiza valores enviados (solo admins)
+    """
+    # Solo admins
+    if not request.user.is_staff and not getattr(request.user, "is_admin", False):
+        return Response(
+            {"error": "No tiene permisos para ver/editar configuraciones del sistema"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if request.method == "GET":
+        return Response(CURRENT_SYSTEM_SETTINGS)
+
+    data = request.data or {}
+    for key, value in data.items():
+        if key in CURRENT_SYSTEM_SETTINGS:
+            CURRENT_SYSTEM_SETTINGS[key] = value
+
+    return Response(CURRENT_SYSTEM_SETTINGS, status=status.HTTP_200_OK)
+
+# =============== HERRAMIENTAS DE BASE DE DATOS (ADMIN) ===============
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def db_backup(request):
+    """
+    Crea un backup simple de la base de datos.
+    Para desarrollo: copia el archivo db.sqlite3 a media/backups/.
+    """
+    if not request.user.is_staff and not getattr(request.user, "is_admin", False):
+        return Response(
+            {"error": "No tiene permisos para ejecutar esta acción"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    from django.conf import settings
+    from datetime import datetime
+    import shutil
+
+    db_path = settings.DATABASES['default']['NAME']
+    backup_dir = settings.MEDIA_ROOT / 'backups'
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_path = backup_dir / f'db_backup_{timestamp}.sqlite3'
+
+    try:
+        shutil.copy(str(db_path), str(backup_path))
+        return Response(
+            {"success": True, "message": f"Backup creado en {backup_path.name}"},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": f"Error al crear backup: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def db_optimize(request):
+    """
+    Optimiza la base de datos SQLite ejecutando VACUUM y ANALYZE.
+    (Seguro en desarrollo; en producción habría que revisar)
+    """
+    if not request.user.is_staff and not getattr(request.user, "is_admin", False):
+        return Response(
+            {"error": "No tiene permisos para ejecutar esta acción"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    from django.db import connection
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('VACUUM;')
+            cursor.execute('ANALYZE;')
+        return Response(
+            {"success": True, "message": "Base de datos optimizada correctamente"},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": f"Error al optimizar la base de datos: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def db_clean_expired_invitations(request):
+    """
+    Elimina invitaciones expiradas (usando método is_valid() del modelo Invitation).
+    """
+    if not request.user.is_staff and not getattr(request.user, "is_admin", False):
+        return Response(
+            {"error": "No tiene permisos para ejecutar esta acción"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    import datetime
+    from django.utils import timezone
+
+    try:
+        now = timezone.now()
+        expired = Invitation.objects.all()
+        deleted = 0
+
+        for inv in expired:
+            if not inv.is_valid():
+                inv.delete()
+                deleted += 1
+
+        return Response(
+            {"success": True, "message": f"Invitaciones expiradas eliminadas: {deleted}"},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": f"Error al limpiar invitaciones expiradas: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

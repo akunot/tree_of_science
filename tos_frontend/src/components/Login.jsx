@@ -47,7 +47,16 @@ const Login = () => {
         error.response?.data?.detail ||
         '';
 
-      // 1) Cuenta no activa (suspendida / pendiente) -> pantalla especial
+      // 1) Sistema en mantenimiento
+      if (error.response?.status === 503) {
+        setError(
+          backendError ||
+          'El sistema está en mantenimiento. Solo administradores pueden iniciar sesión.'
+        );
+        return;
+      }
+
+      // 2) Cuenta no activa (suspendida / pendiente) -> pantalla especial
       if (
         error.response?.status === 403 &&
         backendError === 'Cuenta no activa. Contacte al administrador.'
@@ -56,7 +65,7 @@ const Login = () => {
         return;
       }
 
-      // 2) Otros casos (no verificada, invitación no aceptada, etc.) -> mostrar en el login
+      // 3) Otros casos (no verificada, invitación no aceptada, etc.) -> mostrar en el login
       setError(
         backendError ||
         'Error al iniciar sesión. Verifique sus credenciales.'
