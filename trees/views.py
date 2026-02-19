@@ -11,6 +11,8 @@ import json
 import io
 from .models import Tree
 from .serializers import TreeCreateSerializer, TreeSerializer, TreeListSerializer
+import textwrap
+from reportlab.lib import colors
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -95,95 +97,119 @@ def tree_download(request, pk, format_type):
             nodes = tree.arbol_json.get('nodes', []) or []
             stats = tree.arbol_json.get('statistics', {}) or {}
 
+            # --- Constantes de layout ---
+            MARGIN = 50
+            COL_TITLE   = MARGIN         # 0–220
+            COL_YEAR    = MARGIN + 230   # 280
+            COL_TYPE    = MARGIN + 275   # 325
+            COL_SAP     = MARGIN + 345   # 395
+            COL_CITES   = MARGIN + 400   # 450
+            TITLE_MAX_W = 220            # caracteres visual aprox.
+            LINE_H      = 11
+            ROW_PAD     = 2
+
             def draw_header(title_suffix=""):
-                p.setFont("Helvetica-Bold", 16)
-                title = f"Árbol de la Ciencia - {tree.title or f'ID: {tree.id}'}"
+                # Fondo del header
+                p.setFillColorRGB(0.15, 0.25, 0.45)
+                p.rect(0, height - 100, width, 100, fill=1, stroke=0)
+
+                # Título principal
+                p.setFillColorRGB(1, 1, 1)
+                p.setFont("Helvetica-Bold", 15)
+                title = f"Árbol de la Ciencia — {tree.title or f'ID: {tree.id}'}"
                 if title_suffix:
-                    title = f"{title} ({title_suffix})"
-                p.drawString(50, height - 50, title)
+                    title += f" ({title_suffix})"
+                p.drawString(MARGIN, height - 30, title[:90])
 
-                p.setFont("Helvetica", 10)
-                y_header = height - 70
-                p.drawString(50, y_header, f"Semilla: {tree.seed}")
-                p.drawString(300, y_header, f"Fecha: {tree.fecha_generado.strftime('%Y-%m-%d %H:%M')}")
-
-                y_header -= 14
+                # Subtítulo: metadatos
+                p.setFont("Helvetica", 9)
+                p.drawString(MARGIN, height - 47, f"Semilla: {tree.seed}   |   Fecha: {tree.fecha_generado.strftime('%Y-%m-%d %H:%M')}   |   Nodos: {len(nodes)}")
                 if tree.bibliography:
-                    p.drawString(50, y_header, f"Bibliografía: {getattr(tree.bibliography, 'nombre_archivo', '')[:50]}")
-                p.drawString(300, y_header, f"Nodos: {len(nodes)}")
+                    p.drawString(MARGIN, height - 59, f"Bibliografía: {getattr(tree.bibliography, 'nombre_archivo', '')[:60]}")
 
-                # Estadísticas resumidas
-                y_header -= 20
-                p.setFont("Helvetica-Bold", 10)
-                p.drawString(50, y_header, "Raíces")
-                p.drawString(120, y_header, "Troncos")
-                p.drawString(200, y_header, "Hojas")
-                p.drawString(280, y_header, "SAP Prom.")
-                p.drawString(360, y_header, "SAP Max")
-                p.drawString(430, y_header, "SAP Min")
+                # Stats box (fondo más claro)
+                p.setFillColorRGB(0.22, 0.35, 0.58)
+                p.rect(0, height - 100, width, 30, fill=1, stroke=0)
 
-                y_header -= 12
-                p.setFont("Helvetica", 10)
-                p.drawString(50, y_header, str(stats.get("roots", 0)))
-                p.drawString(120, y_header, str(stats.get("trunks", 0)))
-                p.drawString(200, y_header, str(stats.get("leaves", 0)))
-                p.drawString(280, y_header, f"{stats.get('average_sap', 0):.2f}")
-                p.drawString(360, y_header, str(stats.get("max_sap", 0)))
-                p.drawString(430, y_header, str(stats.get("min_sap", 0)))
-
-                # Encabezado de tabla
-                y_header -= 22
+                p.setFillColorRGB(0.85, 0.92, 1)
                 p.setFont("Helvetica-Bold", 9)
-                p.drawString(50, y_header, "Título")
-                p.drawString(280, y_header, "Año")
-                p.drawString(320, y_header, "Tipo")
-                p.drawString(380, y_header, "SAP")
-                p.drawString(430, y_header, "Citas")
+                stat_items = [
+                    (MARGIN,        f"Raíces: {stats.get('roots', 0)}"),
+                    (MARGIN + 90,   f"Troncos: {stats.get('trunks', 0)}"),
+                    (MARGIN + 190,  f"Hojas: {stats.get('leaves', 0)}"),
+                    (MARGIN + 285,  f"SAP Prom: {stats.get('average_sap', 0):.2f}"),
+                    (MARGIN + 380,  f"SAP Máx: {stats.get('max_sap', 0)}"),
+                    (MARGIN + 460,  f"SAP Mín: {stats.get('min_sap', 0)}"),
+                ]
+                for x, text in stat_items:
+                    p.drawString(x, height - 89, text)
 
-                # Línea divisoria
-                y_header -= 4
-                p.line(50, y_header, width - 50, y_header)
+                # Encabezado de columnas de tabla
+                p.setFillColorRGB(0.93, 0.95, 0.98)
+                p.rect(MARGIN - 4, height - 122, width - MARGIN * 2 + 8, 18, fill=1, stroke=0)
 
-                return y_header - 12  # posición inicial para filas
+                p.setFillColorRGB(0.1, 0.1, 0.3)
+                p.setFont("Helvetica-Bold", 9)
+                p.drawString(COL_TITLE,  height - 112, "Título")
+                p.drawString(COL_YEAR,   height - 112, "Año")
+                p.drawString(COL_TYPE,   height - 112, "Tipo")
+                p.drawString(COL_SAP,    height - 112, "SAP")
+                p.drawString(COL_CITES,  height - 112, "Citas")
+
+                # Línea bajo encabezado
+                p.setStrokeColorRGB(0.15, 0.25, 0.45)
+                p.setLineWidth(1)
+                p.line(MARGIN - 4, height - 124, width - MARGIN + 4, height - 124)
+
+                return height - 130  # y inicial para filas
 
             y = draw_header()
-
-            p.setFont("Helvetica", 9)
-            line_height = 12
-            max_width_title = 220  # px aprox para columna título
+            p.setFillColorRGB(0, 0, 0)
 
             for idx, node in enumerate(nodes):
-                if y < 60:  # espacio para footer
+                label     = str(node.get("label", "Nodo sin etiqueta"))
+                year      = str(node.get("year", ""))[:6] if node.get("year") else "—"
+                node_type = str(node.get("type_label", node.get("group", "")))[:12]
+                sap_val   = node.get("_sap", 0)
+                cites     = str(node.get("times_cited", 0))
+
+                # Wrap del título a ~55 chars por línea (ajusta según fuente 9pt)
+                wrapped = textwrap.wrap(label, width=55) or [""]
+                row_height = len(wrapped) * LINE_H + ROW_PAD * 2
+
+                # Salto de página si no hay espacio
+                if y - row_height < 50:
                     p.showPage()
-                    y = draw_header(title_suffix=f"cont. pág. {idx+1}")
+                    y = draw_header(title_suffix=f"cont. pág. {idx + 1}")
+                    p.setFillColorRGB(0, 0, 0)
 
-                    p.setFont("Helvetica", 9)
+                # Fondo alternado de filas
+                if idx % 2 == 0:
+                    p.setFillColorRGB(0.96, 0.97, 1.0)
+                    p.rect(MARGIN - 4, y - row_height, width - MARGIN * 2 + 8, row_height, fill=1, stroke=0)
+                    p.setFillColorRGB(0, 0, 0)
 
-                label = str(node.get("label", "Nodo sin etiqueta"))
-                year = str(node.get("year", "")) if node.get("year") else ""
-                node_type = str(node.get("type_label", node.get("group", "")))
-                sap_val = node.get("_sap", 0)
-                cites = node.get("times_cited", 0)
+                # Título (multi-línea)
+                p.setFont("Helvetica", 8.5)
+                text_y = y - LINE_H
+                for line in wrapped:
+                    p.drawString(COL_TITLE, text_y, line)
+                    text_y -= LINE_H
 
-                # recortar el título a una longitud razonable
-                if len(label) > 120:
-                    label = f"{label[:117]}..."
+                # Columnas de datos (alineadas al centro vertical de la fila)
+                mid_y = y - (row_height / 2) - 3
+                p.setFont("Helvetica", 8.5)
+                p.drawString(COL_YEAR,  mid_y, year)
+                p.drawString(COL_TYPE,  mid_y, node_type)
+                p.drawString(COL_SAP,   mid_y, f"{sap_val:.2f}" if isinstance(sap_val, (int, float)) else str(sap_val))
+                p.drawString(COL_CITES, mid_y, cites)
 
-                p.drawString(50, y, label[:80])  # primera parte (visual)
-                if len(label) > 80:
-                    # segunda línea para títulos muy largos
-                    y -= line_height
-                    p.drawString(50, y, label[80:160])
+                # Línea separadora entre filas
+                p.setStrokeColorRGB(0.8, 0.84, 0.9)
+                p.setLineWidth(0.4)
+                p.line(MARGIN - 4, y - row_height, width - MARGIN + 4, y - row_height)
 
-                p.drawString(280, y, year[:6])
-                p.drawString(320, y, node_type[:10])
-                p.drawString(380, y, f"{sap_val:.2f}" if isinstance(sap_val, (int, float)) else str(sap_val))
-                p.drawString(430, y, str(cites))
-
-                y -= line_height
-
-            # Footer simple con número de páginas se puede añadir si usas PageTemplates,
-            # pero para algo sencillo así lo dejamos.
+                y -= row_height
 
             p.save()
             buffer.seek(0)

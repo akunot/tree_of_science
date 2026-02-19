@@ -11,11 +11,11 @@ import {
   ExternalLink,
   Layers,
   File,
-  Download,
+  FileText,
   Share2,
 } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { select, forceSimulation, forceCollide, forceY } from 'd3';
+import { select, forceSimulation, forceCollide, forceY, forceX } from 'd3';
 
 const TreeDetail = () => {
   const { id } = useParams();
@@ -28,6 +28,7 @@ const TreeDetail = () => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [nodeFilter, setNodeFilter] = useState('all'); // 'all' | 'leaves' | 'trunks' | 'roots'
+  const [showSapInfo, setShowSapInfo] = useState(false);
 
   const svgRef = useRef(null);
   const resizeObserver = useRef(null);
@@ -198,30 +199,28 @@ const TreeDetail = () => {
     });
 
     return { nodes, links: [] };
-  }, [processedNodes, dimensions, getRadialPosition]);
+  }, [filteredNodes, dimensions, getRadialPosition]);
 
   // Abrir documento
   const openDocument = useCallback((node) => {
     let url = null;
-    let source = '';
 
     if (node.doi) {
       url = `https://doi.org/${node.doi}`;
-      source = 'DOI';
     } else if (node.pmid) {
       url = `https://pubmed.ncbi.nlm.nih.gov/${node.pmid}`;
-      source = 'PubMed';
     } else if (node.arxiv_id) {
       url = `https://arxiv.org/abs/${node.arxiv_id}`;
-      source = 'arXiv';
     } else if (node.url) {
       url = node.url;
-      source = 'URL';
     }
 
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    if (!url) {
+      window.alert('Este nodo no tiene un enlace externo disponible para abrir.');
+      return;
     }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
   }, []);
 
   // Exportar JSON
@@ -303,6 +302,35 @@ const TreeDetail = () => {
     URL.revokeObjectURL(url);
   }, [tree, processedNodes]);
 
+  // Exportar PDF usando el endpoint del backend (/tree/<id>/download/pdf/)
+  const exportToPDF = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const response = await treeAPI.download(id, 'pdf');
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+
+      const safeTitle = (tree?.title || 'arbol_ciencia')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_\\-]+/g, '_')
+        .toLowerCase();
+
+      a.download = `${safeTitle}_${tree?.id || id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error descargando PDF:', error);
+      alert('No se pudo descargar el PDF. Intenta de nuevo más tarde.');
+    }
+  }, [id, tree]);
+
   // Simulación D3
   const restartSimulation = useCallback(() => {
     if (!svgRef.current) return;
@@ -313,26 +341,61 @@ const TreeDetail = () => {
 
     const nodes = treeLayout.nodes.map(n => ({ ...n }));
 
+    const centerX = dimensions.width / 2;
+
     const simulation = forceSimulation(nodes)
-      .alphaDecay(0.012)
-      .velocityDecay(0.45)
+      .alphaDecay(0.015)
+      .velocityDecay(0.5)
       .force("charge", null)
-      .force("collide", forceCollide()
-        .radius(d => (d.radius || 6) + 5)
-        .strength(1.0)
-        .iterations(12)
+      .force(
+        "collide",
+        forceCollide()
+          .radius(d => (d.radius || 6) + 4)
+          .strength(1.0)
+          .iterations(18)
       )
       .force(
         "y",
         forceY((d) => {
+          // acercamos más las bandas verticales para que parezcan un tronco continuo
+          const h = dimensions.height;
           if (d.group === 'root') {
-            return dimensions.height * 0.78;
+            return h * 0.70;     // antes 0.78
           } else if (d.group === 'trunk') {
-            return dimensions.height / 2;
+            return h * 0.55;     // antes 0.50
           } else {
-            return dimensions.height * 0.22;
+            return h * 0.35;     // antes 0.22
           }
-        }).strength(0.06)
+        }).strength(0.12)
+      )
+      .force(
+        "x",
+        forceX((d) => {
+          const groupNodes = nodes.filter(n => n.group === d.group);
+          const idx = groupNodes.findIndex(n => n.id === d.id);
+          const count = Math.max(groupNodes.length, 1);
+          const t = count === 1 ? 0 : (idx / (count - 1)) * 2 - 1; // [-1, 1]
+
+          // amplitud horizontal según grupo
+          const baseAmp = dimensions.width * 0.15;
+          const amp =
+            d.group === 'root'
+              ? baseAmp * 0.6   // raíces un poco abiertas
+              : d.group === 'trunk'
+              ? baseAmp * 0.3   // tronco más compacto
+              : baseAmp * 1.0;  // hojas más abiertas
+
+          // curva: combinamos parábola + ligero desplazamiento lateral por grupo
+          const curved = t * Math.abs(t);
+
+          // pequeño “sesgo” lateral para que no quede tan simétrico con pocos nodos
+          const groupOffset =
+            d.group === 'root' ? -dimensions.width * 0.03
+            : d.group === 'trunk' ? 0
+            : dimensions.width * 0.03;
+
+          return centerX + curved * amp + groupOffset;
+        }).strength(0.10)
       )
       .stop();
 
@@ -418,13 +481,13 @@ const TreeDetail = () => {
       });
 
     setIsSimulating(false);
-  }, [treeLayout.nodes, dimensions, openDocument]);
+  }, [treeLayout, dimensions, openDocument]);
 
   useEffect(() => {
     if (treeLayout.nodes.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
       restartSimulation();
     }
-  }, [treeLayout.nodes.length, dimensions.width, dimensions.height, restartSimulation]);
+  }, [treeLayout, dimensions, restartSimulation]);
 
   // Virtual scrolling
   const ITEM_HEIGHT = 160;
@@ -629,6 +692,16 @@ const TreeDetail = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={exportToPDF}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 md:px-4 py-2 rounded-lg border border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10 text-[#f5f5f0] font-bold text-xs md:text-sm uppercase tracking-widest transition-all"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">PDF</span>
+          </motion.button> 
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={exportToJSON}
             className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 md:px-4 py-2 rounded-lg border border-[#19c3e6]/20 hover:border-[#19c3e6] hover:bg-[#19c3e6]/10 text-[#f5f5f0] font-bold text-xs md:text-sm uppercase tracking-widest transition-all"
           >
@@ -672,13 +745,11 @@ const TreeDetail = () => {
 
           <div
             ref={containerRefCallback}
-            className="w-full rounded-xl border border-[#19c3e6]/20 overflow-hidden"
+            className="w-full rounded-xl border border-[#19c3e6]/20 overflow-hidden h-[420px] md:h-auto md:aspect-[16/9]"
             style={{
               background: 'rgba(255, 255, 255, 0.02)',
               backdropFilter: 'blur(12px)',
-              minHeight: '350px',
-              height: '100%',
-              aspectRatio: '16/9'
+              minHeight: '360px',
             }}
           >
             <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
@@ -732,9 +803,39 @@ const TreeDetail = () => {
               </div>
 
               {treeStats.average_sap && (
-                <div>
-                  <div className="text-xs text-[#f5f5f0]/70 mb-1">SAP Promedio</div>
+                <div className="relative">
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="text-xs text-[#f5f5f0]/70">SAP Promedio</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSapInfo((prev) => !prev)}
+                      className="p-0.5 rounded-full border border-[#19c3e6]/40 text-[#19c3e6] hover:bg-[#19c3e6]/10"
+                    >
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </div>
                   <p className="text-xl font-bold text-[#19c3e6]">{treeStats.average_sap.toFixed(2)}</p>
+
+                  {showSapInfo && (
+                    <div
+                      className="absolute z-20 mt-2 w-64 text-[10px] px-3 py-2 rounded-lg border border-[#19c3e6]/30 text-[#f5f5f0]/80"
+                      style={{
+                        background: 'rgba(15, 21, 19, 0.96)',
+                        right: 0,
+                      }}
+                    >
+                      <p className="font-semibold text-[#f5f5f0] mb-1">¿Qué es el SAP?</p>
+                      <p className="mb-1">
+                        SAP = <strong>Shoot Apical Point</strong> (Punto Apical del Brote).
+                      </p>
+                      <p className="mb-1">
+                        Es una puntuación que indica qué tan conectado y relevante es un artículo dentro de la red de conocimiento del campo estudiado.
+                      </p>
+                      <p>
+                        Un SAP alto significa que ese artículo es citado por muchos otros y conecta distintas partes del árbol.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -789,11 +890,10 @@ const TreeDetail = () => {
 
             <div
               ref={listContainerRef}
-              className="rounded-xl border border-[#19c3e6]/20 p-4"
+              className="rounded-xl border border-[#19c3e6]/20 p-4 h-[320px] md:h-[400px]"
               style={{
                 background: 'rgba(255, 255, 255, 0.02)',
                 backdropFilter: 'blur(12px)',
-                height: '400px',
                 overflowY: 'auto',
                 overflowX: 'hidden',
               }}
