@@ -256,7 +256,7 @@ En **"Historial"** puedes:
 | `POST` | `/trees/generate/` | Generar nuevo árbol |
 | `GET` | `/trees/history/` | Historial del usuario (`?search=` · `?page_size=`) |
 | `GET` | `/trees/<id>/` | Detalle de un árbol |
-| `GET` | `/trees/<id>/download/<format>/` | Descarga en `json` o `pdf` |
+| `GET` | `/trees/<id>/download/<format>/` | Descarga en `json`, `pdf` o `csv` |
 | `DELETE` | `/trees/<id>/delete/` | Eliminar árbol |
 
 ### Bibliografías (`/bibliography/`)
