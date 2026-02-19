@@ -228,7 +228,7 @@ Usuario solicita acceso → Admin revisa la solicitud → Aprueba o rechaza
 En **"Historial"** puedes:
 - Ver todos tus árboles generados.
 - Buscar y filtrar por título, semilla o archivo de bibliografía.
-- Descargar en JSON o PDF.
+- Descargar en JSON, PDF o CSV.
 - Eliminar árboles.
 
 ---
