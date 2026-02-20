@@ -1,6 +1,6 @@
 # Documentación Técnica — Árbol de la Ciencia UNAL
 
-**Versión:** 1.1  
+**Versión:** 1.0  
 **Fecha:** Febrero 2026  
 **Desarrollado para:** Universidad Nacional de Colombia
 
