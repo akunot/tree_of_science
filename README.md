@@ -294,7 +294,7 @@ Este proyecto fue desarrollado para la Universidad Nacional de Colombia. Para su
 
 ## 📚 Documentación adicional
 
-Para detalles sobre modelos, serializadores, permisos y flujos completos, revisa [`documentacion_tecnica.md`](./documentacion_tecnica.md).
+Para detalles sobre modelos, serializadores, permisos y flujos completos, revisa [`documentacion_tecnica.md`](./Documentación Técnica - Árbol de la Ciencia UNAL.md).
 
 ---
 
