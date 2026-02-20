@@ -209,6 +209,10 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Tiempo de expiración de enlaces de recuperación de contraseña
+# 24 horas (en segundos)
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+
 # Email configuration (para recuperación de contraseña y envío de invitaciones)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'

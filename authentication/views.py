@@ -58,8 +58,8 @@ def send_verification_email(user, request):
     
     {verification_url}
     
-    Este enlace expirará en 24 horas.
-    
+    Este enlace es de un solo uso.
+
     Si no solicitaste esta cuenta, ignora este email.
     
     Saludos,

@@ -262,7 +262,10 @@ const TreeHistory = () => {
   };
 
   return (
-    <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8">
+    <div
+      data-testid="history"
+      className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8"
+    >
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}

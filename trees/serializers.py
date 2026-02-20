@@ -13,6 +13,11 @@ class TreeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tree
         fields = ('seed', 'bibliography', 'title')
+        extra_kwargs = {
+            'seed': {'required': True},
+            'bibliography': {'required': True},
+            'title': {'required': True},
+        }
 
     def _get_type_label(self, group: str) -> str:
         """
@@ -47,29 +52,56 @@ class TreeCreateSerializer(serializers.ModelSerializer):
         1) Lee el archivo de bibliografía (CSV/TXT).
         2) Genera y limpia el grafo con Sap.
         3) Extrae nodos, los filtra y clasifica.
-        4) Calcula estadísticas y compone el JSON final optimizado.
+        4) Si no hay nodos válidos, lanza error de validación.
+        5) Calcula estadísticas y compone el JSON final optimizado.
         """
+        from rest_framework.exceptions import ValidationError
+
         graph = self._build_graph_from_file(archivo)
         nodes_with_attributes, stats = self._extract_nodes_with_stats(graph)
+
+        if not nodes_with_attributes:
+            raise ValidationError(
+                "No se pudo generar el árbol: el archivo de bibliografía no contiene información procesable."
+            )
+
         links = self._extract_links(graph)
         return self._compose_transformed_data(seed, nodes_with_attributes, links, stats)
 
     def _build_graph_from_file(self, archivo):
         """
         Lee el archivo de bibliografía y construye el grafo base usando Sap.
+        Lanza un error de validación si el archivo no es procesable.
         """
+        from rest_framework.exceptions import ValidationError
+        from bibx.exceptions import InvalidIsiLineError
+
         filename = (archivo.name or "").lower()
 
-        if filename.endswith('.csv'):
-            with archivo.open('rb') as f:
-                text_file = io.TextIOWrapper(f, encoding='utf-8')
-                corpus = read_scopus_csv(text_file)
-        elif filename.endswith('.txt'):
-            with archivo.open('rb') as f:
-                text_file = io.TextIOWrapper(f, encoding='utf-8')
-                corpus = read_wos(text_file)
-        else:
-            raise ValueError("Formato de archivo de bibliografía no soportado.")
+        try:
+            if filename.endswith('.csv'):
+                with archivo.open('rb') as f:
+                    text_file = io.TextIOWrapper(f, encoding='utf-8')
+                    corpus = read_scopus_csv(text_file)
+            elif filename.endswith('.txt'):
+                with archivo.open('rb') as f:
+                    text_file = io.TextIOWrapper(f, encoding='utf-8')
+                    corpus = read_wos(text_file)
+            else:
+                raise ValidationError(
+                    "Formato de archivo de bibliografía no soportado. Use archivos CSV (Scopus) o TXT (WoS/ISI)."
+                )
+        except InvalidIsiLineError:
+            # Archivo TXT no sigue el formato ISI/WoS esperado
+            raise ValidationError(
+                "El archivo de bibliografía no tiene el formato ISI/WoS válido. "
+                "Verifique que haya sido exportado correctamente desde la base de datos."
+            )
+        except Exception as exc:
+            # Cualquier otro error de parsing se reporta como archivo no procesable
+            raise ValidationError(
+                f"No se pudo procesar el archivo de bibliografía: {str(exc)}"
+            )
 
         sap = Sap()
         graph = sap.create_graph(corpus)

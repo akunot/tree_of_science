@@ -33,11 +33,40 @@ const TreeGenerator = () => {
       navigate(`/tree/${response.data.id}`);
     },
     onError: (error) => {
-      setError(
-        error.response?.data?.detail ||
-        error.response?.data?.seed?.[0] ||
-        'Error al generar el árbol. Intente nuevamente.'
-      );
+      const data = error.response?.data || {};
+      const rawMessage =
+        data.detail ||
+        data.non_field_errors?.[0] ||
+        data.error ||
+        data.seed?.[0] ||
+        '';
+
+      // Normalizar a string
+      const msg = typeof rawMessage === 'string' ? rawMessage : String(rawMessage || '');
+
+      // Interpretar y dar mensajes más específicos según el contenido
+      let friendlyMessage = msg;
+
+      if (!msg) {
+        friendlyMessage = 'Error al generar el árbol. Intente nuevamente.';
+      } else if (msg.includes('formato ISI/WoS válido')) {
+        friendlyMessage =
+          'El archivo TXT no tiene el formato ISI/WoS esperado. ' +
+          'Asegúrese de exportar la bibliografía desde Web of Science/ISI en formato de texto completo.';
+      } else if (msg.includes('formato de archivo de bibliografía no soportado')) {
+        friendlyMessage =
+          'Formato de archivo no soportado. Use archivos CSV exportados de Scopus o TXT exportados de Web of Science/ISI.';
+      } else if (msg.includes('no contiene información procesable')) {
+        friendlyMessage =
+          'No se pudo generar el árbol: el archivo de bibliografía no contiene información suficiente o procesable. ' +
+          'Verifique que incluya registros completos (títulos, autores, etc.).';
+      } else if (msg.startsWith('No se pudo procesar el archivo de bibliografía')) {
+        friendlyMessage =
+          msg +
+          ' Revise que el archivo no esté corrupto y que corresponda a un export estándar de la base de datos.';
+      }
+
+      setError(friendlyMessage);
     },
   });
 
@@ -45,15 +74,29 @@ const TreeGenerator = () => {
     e.preventDefault();
     setError('');
 
-    if (!formData.seed.trim()) {
-      setError('La semilla es requerida');
+    const seed = formData.seed.trim();
+    const title = formData.title.trim();
+    const {bibliography} = formData;
+
+    if (!seed) {
+      setError('La semilla conceptual es requerida.');
+      return;
+    }
+
+    if (!title) {
+      setError('El título del árbol es requerido.');
+      return;
+    }
+
+    if (!bibliography) {
+      setError('Debe seleccionar una bibliografía de referencia.');
       return;
     }
 
     const payload = {
-      seed: formData.seed,
-      title: formData.title || undefined,
-      bibliography: formData.bibliography || undefined,
+      seed,
+      title,
+      bibliography,
     };
 
     generateTreeMutation.mutate(payload);
@@ -72,6 +115,7 @@ const TreeGenerator = () => {
       ...formData,
       bibliography: value === 'none' ? '' : value,
     });
+    setError('');
   };
 
   const seedExamples = [
@@ -181,7 +225,7 @@ const TreeGenerator = () => {
                 disabled={bibliographiesLoading}
                 className="w-full px-4 py-3 rounded-lg border border-[#19c3e6]/20 bg-[#19c3e6]/5 text-[#f5f5f0] focus:border-[#19c3e6] focus:outline-none transition-all disabled:opacity-50"
               >
-                <option value="none" className="bg-[#0f1513]">Sin bibliografía</option>
+                 <option value="none" className="bg-[#0f1513]">Seleccione una bibliografía...</option>
                 {bibliographies.map((bibliography) => (
                   <option key={bibliography.id} value={bibliography.id.toString()} className="bg-[#0f1513]">
                     {bibliography.nombre_archivo}

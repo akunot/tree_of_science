@@ -349,10 +349,10 @@ const Login = () => {
               {loginMutation.isPending ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1a2e05] mr-2" />
-                  Sincronizando...
+                  Iniciando sesión...
                 </div>
               ) : (
-                "Sincronizar Archivo"
+                "Iniciar sesión"
               )}
             </motion.button>
           </form>
