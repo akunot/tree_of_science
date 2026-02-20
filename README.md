@@ -294,14 +294,14 @@ Este proyecto fue desarrollado para la Universidad Nacional de Colombia. Para su
 
 ## 📚 Documentación adicional
 
-Para detalles sobre modelos, serializadores, permisos y flujos completos, revisa [`Documentación Técnica - Árbol de la Ciencia UNAL.md`](./Documentación Técnica - Árbol de la Ciencia UNAL.md).
+Para detalles sobre modelos, serializadores, permisos y flujos completos, revisa [Documentación Técnica - Árbol de la Ciencia UNAL.md](./Documentaci%C3%B3n%20T%C3%A9cnica%20-%20%C3%81rbol%20de%20la%20Ciencia%20UNAL.md).
 
 ---
 
 ## 🆘 Soporte
 
 Para soporte técnico o consultas:
-1. Revisa primero [`documentacion_tecnica.md`](./documentacion_tecnica.md).
+1. Revisa primero [Documentación Técnica - Árbol de la Ciencia UNAL.md](./Documentaci%C3%B3n%20T%C3%A9cnica%20-%20%C3%81rbol%20de%20la%20Ciencia%20UNAL.md).
 2. Contacta al equipo de desarrollo de la **Universidad Nacional de Colombia**.
 
 ---
