@@ -150,7 +150,8 @@ test("SEG-05 | Tokens JWT no están expuestos en localStorage", async ({ page })
 
   // Actualmente los tokens se guardan en localStorage; este test actúa como advertencia.
   // Cuando migres a cookies httpOnly, cambia esta expectativa a false.
-  expect(tieneTokenExpuesto).toBe(true);
+  expect(tieneTokenExpuesto).toBe(false);
+
 });
 
 // ────────────────────────────────────────────────────────────

@@ -19,7 +19,8 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: "http://localhost:5174",   // ← Vite lo reasignó a 5174 en tu máquina
+    // Debe coincidir con el puerto REAL donde corre Vite
+    baseURL: "http://localhost:5173",
     headless: true,
     screenshot: "only-on-failure",
     video: "retain-on-failure",
