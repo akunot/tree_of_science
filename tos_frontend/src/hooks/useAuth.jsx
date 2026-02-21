@@ -13,7 +13,6 @@ import {
   hasValidSession,
   shouldRedirectToLogin,
   shouldRedirectToAdmin,
-  isTokenValid,
   canAccessAdminPanel
 } from '../lib/auth';
 import { authAPI } from '../lib/api';
@@ -21,7 +20,7 @@ import { authAPI } from '../lib/api';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => getUser());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initializing, setInitializing] = useState(true);
@@ -32,10 +31,9 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         setError(null);
 
-        // ✅ Cargar datos de localStorage
+        // ✅ Cargar datos de localStorage (solo `user`, tokens están en cookies HttpOnly)
         if (isAuthenticated()) {
-          const userData = getUser();
-          setUser(userData);
+          setUser(getUser());
         } else {
           setUser(null);
         }
@@ -51,17 +49,17 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // ✅ FUNCIÓN LOGIN CORREGIDA
+  // ✅ LOGIN: ahora solo guardamos `user`; los tokens van en cookies HttpOnly
   const login = (authData) => {
     try {
       setLoading(true);
       setError(null);
 
-      const { access, refresh, user } = authData;
+      const { user } = authData || {};
 
-      // Guardar en localStorage
-      setAuthData({ access, refresh, user });
-      
+      // Guardar en localStorage (solo user)
+      setAuthData({ user });
+
       // Actualizar estado
       setUser(user);
 

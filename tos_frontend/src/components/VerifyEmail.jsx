@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { authAPI } from '../lib/api';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
   const [message, setMessage] = useState('');
 
@@ -18,8 +20,14 @@ const VerifyEmail = () => {
 
     authAPI.verifyEmail(token)
       .then((res) => {
-        setStatus('success');
-        setMessage('Email verificado correctamente. Ahora puede iniciar sesión.');
+        // El backend ya dejó las cookies y devolvió user
+        if (res.data?.user) {
+          login(res.data);          // guarda user en localStorage
+          navigate('/dashboard');   // o '/admin' si quieres lógica de rol
+        } else {
+          setStatus('success');
+          setMessage('Email verificado correctamente. Ahora puede iniciar sesión.');
+        }
       })
       .catch((error) => {
         console.error('Error verificando email', error);

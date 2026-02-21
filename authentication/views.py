@@ -185,14 +185,39 @@ def register(request):
                 send_verification_email(user, request)
 
                 # Generar tokens JWT
+                # Generar tokens JWT
                 refresh = RefreshToken.for_user(user)
 
-                return Response({
+                # Crear respuesta y mover tokens a cookies httpOnly
+                response = Response({
                     'user': UserSerializer(user).data,
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
                     'message': 'Registro exitoso. Revisa tu email para verificar tu cuenta.'
                 }, status=status.HTTP_201_CREATED)
+
+                access_token = str(refresh.access_token)
+                refresh_token = str(refresh)
+
+                # Cookie de acceso (1 hora aprox.)
+                response.set_cookie(
+                    key='access_token',
+                    value=access_token,
+                    httponly=True,
+                    secure=False,          # ✅ pon True en producción (HTTPS)
+                    samesite='Lax',
+                    max_age=60 * 60,
+                )
+
+                # Cookie de refresh (7 días aprox.)
+                response.set_cookie(
+                    key='refresh_token',
+                    value=refresh_token,
+                    httponly=True,
+                    secure=False,
+                    samesite='Lax',
+                    max_age=7 * 24 * 60 * 60,
+                )
+
+                return response
 
         except Invitation.DoesNotExist:
             return Response({
@@ -296,11 +321,32 @@ def login(request):
             request
         )
 
-        return Response({
+        # Crear respuesta y mover tokens a cookies httpOnly
+        response = Response({
             'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
         })
+
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        response.set_cookie(
+            key='access_token',
+            value=access_token,
+            httponly=True,
+            secure=False,          # ✅ True en producción
+            samesite='Lax',
+            max_age=60 * 60,
+        )
+        response.set_cookie(
+            key='refresh_token',
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite='Lax',
+            max_age=7 * 24 * 60 * 60,
+        )
+
+        return response
 
     # Login fallido - registrar intento
     email = request.data.get('email', '')
@@ -325,7 +371,11 @@ def logout(request):
             'Cierre de sesión',
             request
         )
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    response = Response(status=status.HTTP_204_NO_CONTENT)
+    # Borrar cookies de tokens
+    response.delete_cookie('access_token')
+    response.delete_cookie('refresh_token')
+    return response
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -356,13 +406,34 @@ def verify_email(request):
         
         # Generar nuevos tokens
         refresh = RefreshToken.for_user(user)
-        
-        return Response({
+
+        # Crear respuesta y mover tokens a cookies httpOnly
+        response = Response({
             'message': 'Email verificado exitosamente',
             'user': UserSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
         })
+
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        response.set_cookie(
+            key='access_token',
+            value=access_token,
+            httponly=True,
+            secure=False,          # ✅ True en producción
+            samesite='Lax',
+            max_age=60 * 60,
+        )
+        response.set_cookie(
+            key='refresh_token',
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite='Lax',
+            max_age=7 * 24 * 60 * 60,
+        )
+
+        return response
         
     except User.DoesNotExist:
         return Response({

@@ -36,7 +36,22 @@ const BibliographyManager = () => {
       alert('Archivo subido exitosamente');
     },
     onError: (error) => {
-      alert('Error al subir el archivo: ' + (error.response?.data?.archivo?.[0] || 'Intente nuevamente'));
+      const raw =
+        error.response?.data?.archivo?.[0] ||
+        error.response?.data?.detail ||
+        error.response?.data?.error ||
+        '';
+
+      const msg = String(raw || '');
+      let friendly = msg || 'Error al subir el archivo. Intente nuevamente.';
+
+      if (msg.includes('no tiene suficientes datos de citación')) {
+        friendly =
+          'El archivo se subió pero no tiene suficientes datos de citación para generar un árbol válido.\n\n' +
+          'Desde Scopus, exporte en formato RIS o BibTeX marcando también la opción "References".';
+      }
+
+      alert('Error al subir el archivo: ' + friendly);
     },
   });
 

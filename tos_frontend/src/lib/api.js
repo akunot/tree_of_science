@@ -8,76 +8,44 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // ⬇️ Enviar cookies (access_token, refresh_token) en cada request
+  withCredentials: true,
 });
 
-// Interceptor para agregar el token de autenticación
+// Ya NO añadimos Authorization con Bearer desde localStorage.
+// El backend lee el JWT desde las cookies HttpOnly.
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (config) => config,
+  (error) => Promise.reject(error)
 );
 
-// Interceptor para manejar respuestas y errores
+// Interceptor para manejar respuestas y errores.
+// De momento, si hay 401 dejamos que la app/redirecciones lo manejen.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh-token/`, {
-            refresh: refreshToken,
-          });
-
-          const { access } = response.data;
-          localStorage.setItem('access_token', access);
-
-          // Reintentar la solicitud original
-          originalRequest.headers.Authorization = `Bearer ${access}`;
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        // El refresh token también expiró, redirigir al login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login/';
-      }
-    }
-
+    // Aquí podrías, más adelante, implementar lógica para
+    // detectar 401 y llevar al usuario a /login, si quieres.
     return Promise.reject(error);
   }
 );
 
- // ===== API DE AUTENTICACIÓN =====
- export const authAPI = {
-   register: (userData) => api.post('/auth/register/', userData),
-   login: (credentials) => api.post('/auth/login/', credentials),
-   logout: () => api.post('/auth/logout/'),
-   forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
-   resetPassword: (data) => api.post('/auth/reset-password/', data),
-   getCurrentUser: () => api.get('/auth/user/'),
-   refreshToken: (refreshToken) => api.post('/auth/refresh-token/', { refresh: refreshToken }),
+// ===== API DE AUTENTICACIÓN =====
+export const authAPI = {
+  register: (userData) => api.post('/auth/register/', userData),
+  login: (credentials) => api.post('/auth/login/', credentials),
+  logout: () => api.post('/auth/logout/'),
+  forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
+  resetPassword: (data) => api.post('/auth/reset-password/', data),
+  getCurrentUser: () => api.get('/auth/user/'),
 
-   // === INVITACIONES (usadas en Register.jsx) ===
-   verifyInvitation: (token) => api.post('/auth/invitations/validate/', { token }),
-   registerWithInvitation: (userData) => api.post('/auth/register/', userData),
+  // === INVITACIONES (usadas en Register.jsx) ===
+  verifyInvitation: (token) => api.post('/auth/invitations/validate/', { token }),
+  registerWithInvitation: (userData) => api.post('/auth/register/', userData),
 
-   // === VERIFICACIÓN DE EMAIL ===
-   verifyEmail: (token) => api.post('/auth/verify-email/', { token }),
- };
-
+  // === VERIFICACIÓN DE EMAIL ===
+  verifyEmail: (token) => api.post('/auth/verify-email/', { token }),
+};
  // ===== API DE INVITACIONES (si quieres mantenerla) =====
  export const invitationsAPI = {
    verifyInvitation: (token) => authAPI.verifyInvitation(token),

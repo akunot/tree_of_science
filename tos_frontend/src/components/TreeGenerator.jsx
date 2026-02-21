@@ -60,6 +60,28 @@ const TreeGenerator = () => {
         friendlyMessage =
           'No se pudo generar el árbol: el archivo de bibliografía no contiene información suficiente o procesable. ' +
           'Verifique que incluya registros completos (títulos, autores, etc.).';
+
+      } else if (msg.includes('no tiene suficientes datos de citación')) {
+        // Caso específico del TypeError de "no roots" en Sap
+        friendlyMessage =
+          'No se pudo generar el árbol porque el archivo (RIS/BIB) no contiene una red de citaciones entre los artículos.\n\n' +
+          'Para que el árbol funcione, el archivo debe tener referencias internas entre los artículos (no solo títulos y autores).\n\n' +
+          'Al exportar desde Scopus, siga estos pasos:\n' +
+          '1) Seleccione los artículos en Scopus.\n' +
+          '2) Haga clic en "Export".\n' +
+          '3) Elija formato RIS o BibTeX.\n' +
+          '4) En "What information do you want to export?", marque:\n' +
+          '   - Citation information\n' +
+          '   - Bibliographical information\n' +
+          '   - References (obligatorio).\n' +
+          '5) Idealmente exporte al menos 100–300 artículos.\n\n' +
+          'Sin el campo de referencias, bibx no puede construir la red de co-citación y el árbol no tendrá raíces.';
+
+      } else if (msg.startsWith('Error al procesar el grafo')) {
+        friendlyMessage =
+          msg +
+          ' Revise que el archivo provenga de Scopus/Web of Science y que incluya la información de citas.';
+
       } else if (msg.startsWith('No se pudo procesar el archivo de bibliografía')) {
         friendlyMessage =
           msg +

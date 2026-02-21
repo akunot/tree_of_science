@@ -64,44 +64,24 @@ export const canAccessAdminPanel = () => {
 
 // ===== FUNCIONES DE AUTENTICACIÓN =====
 export const isAuthenticated = () => {
-  
-  const token = localStorage.getItem('access_token');
+  // Los tokens ahora viven en cookies HttpOnly (no accesibles desde JS).
+  // Aquí solo verificamos que haya usuario guardado y que esté activo.
   const user = getUser();
-  
-  
-  if (!token || !user) {
-    return false;
-  }
-  
-  // Verificar que el token sea válido
-  const tokenValid = isTokenValid(token);
-  
-  if (!tokenValid) {
-    return false;
-  }
-  
-  // Verificar que el usuario esté activo
-  const userActive = isUserActive();
-  
-  return tokenValid && userActive;
+  if (!user) return false;
+
+  return isUserActive();
 };
 
 export const hasValidSession = () => {
-  const accessToken = localStorage.getItem('access_token');
-  const refreshToken = localStorage.getItem('refresh_token');
-  
-  return accessToken && refreshToken;
+  // Consideramos sesión válida si hay usuario en localStorage.
+  // La validez real del token la controla el backend con las cookies.
+  return !!getUser();
 };
 
 // ===== FUNCIONES DE MANEJO DE DATOS DE AUTENTICACIÓN =====
 export const setAuthData = (data) => {
-  try {    
-    if (data.access) {
-      localStorage.setItem('access_token', data.access);
-    }
-    if (data.refresh) {
-      localStorage.setItem('refresh_token', data.refresh);
-    }
+  try {
+    // Los tokens (access/refresh) ahora van en cookies HttpOnly, no en localStorage.
     if (data.user) {
       localStorage.setItem('user', JSON.stringify(data.user));
     }
@@ -123,9 +103,9 @@ export const updateUserData = (userData) => {
 
 export function clearAuthData() {
   try {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    // Solo limpiamos lo que el frontend controla: el usuario.
     localStorage.removeItem('user');
+    // Las cookies httpOnly se borran en el backend (endpoint /logout).
   } catch (e) {
     console.error('Error clearing auth data:', e);
   }
@@ -133,12 +113,13 @@ export function clearAuthData() {
 
 // ===== FUNCIONES DE REFRESH TOKEN =====
 export const getRefreshToken = () => {
-  return localStorage.getItem('refresh_token');
+  // El refresh token ya no está expuesto al frontend.
+  return null;
 };
 
 export const isRefreshTokenValid = () => {
-  const refreshToken = getRefreshToken();
-  return refreshToken && isTokenValid(refreshToken);
+  // La validación se delega al backend.
+  return true;
 };
 
 // ===== FUNCIONES DE NAVEGACIÓN Y ESTADO =====
@@ -221,9 +202,11 @@ export const canPerformAction = (action) => {
 
 // ===== FUNCIONES DE UTILIDAD =====
 export const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Ya no añadimos Authorization en cada request;
+  // el backend usará las cookies (access_token) que viajan automáticamente.
+  return {};
 };
+
 
 export const formatUserDisplay = (user = getUser()) => {
   if (!user) return 'Usuario';

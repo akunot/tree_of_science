@@ -4,7 +4,7 @@ from bibliography.serializers import BibliographyListSerializer
 from .models import Bibliography
 import networkx as nx
 import json
-from bibx import read_scopus_csv, read_wos, Sap
+from bibx import read_scopus_csv, read_wos, read_scopus_bib, read_scopus_ris, Sap 
 import io
 from datetime import datetime
 
@@ -80,33 +80,59 @@ class TreeCreateSerializer(serializers.ModelSerializer):
 
         try:
             if filename.endswith('.csv'):
+                # Scopus CSV
                 with archivo.open('rb') as f:
                     text_file = io.TextIOWrapper(f, encoding='utf-8')
                     corpus = read_scopus_csv(text_file)
+
             elif filename.endswith('.txt'):
+                # Web of Science / ISI TXT
                 with archivo.open('rb') as f:
                     text_file = io.TextIOWrapper(f, encoding='utf-8')
                     corpus = read_wos(text_file)
+
+            elif filename.endswith('.bib'):
+                # Nuevo: BibTeX (.bib)
+                with archivo.open('rb') as f:
+                    text_file = io.TextIOWrapper(f, encoding='utf-8')
+                    corpus = read_scopus_bib(text_file)
+            
+            elif filename.endswith('.ris'):
+                # Nuevo: RIS (.ris)
+                with archivo.open('rb') as f:
+                    text_file = io.TextIOWrapper(f, encoding='utf-8')
+                    corpus = read_scopus_ris(text_file)
+
             else:
                 raise ValidationError(
-                    "Formato de archivo de bibliografía no soportado. Use archivos CSV (Scopus) o TXT (WoS/ISI)."
+                    "Formato de archivo de bibliografía no soportado. Use archivos CSV (Scopus), TXT (WoS/ISI) o BIB (BibTeX)."
                 )
-        except InvalidIsiLineError:
+        except InvalidIsiLineError as e:
             # Archivo TXT no sigue el formato ISI/WoS esperado
             raise ValidationError(
                 "El archivo de bibliografía no tiene el formato ISI/WoS válido. "
                 "Verifique que haya sido exportado correctamente desde la base de datos."
-            )
+            ) from e
         except Exception as exc:
             # Cualquier otro error de parsing se reporta como archivo no procesable
             raise ValidationError(
                 f"No se pudo procesar el archivo de bibliografía: {str(exc)}"
-            )
+            ) from exc
 
         sap = Sap()
-        graph = sap.create_graph(corpus)
-        graph = sap.clean_graph(graph)
-        graph = sap.tree(graph)
+        try:
+            graph = sap.create_graph(corpus)
+            graph = sap.clean_graph(graph)
+            graph = sap.tree(graph)
+        except TypeError as e:
+            # Caso típico: "It's necessary to have some roots" cuando el RIS no genera raíces
+            if "roots" in str(e).lower():
+                raise ValidationError(
+                    "El archivo no tiene suficientes datos de citación para generar el árbol. "
+                    "Asegúrese de exportar desde Scopus incluyendo las 'References' y con al menos 100 artículos."
+                ) from e
+            raise ValidationError(f"Error al procesar el grafo: {str(e)}") from e
+
         return graph
 
     def _extract_nodes_with_stats(self, graph):
