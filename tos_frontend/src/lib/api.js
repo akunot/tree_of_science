@@ -2,50 +2,78 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Crear instancia de axios
 const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  // ⬇️ Enviar cookies (access_token, refresh_token) en cada request
+  headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });
 
-// Ya NO añadimos Authorization con Bearer desde localStorage.
-// El backend lee el JWT desde las cookies HttpOnly.
-api.interceptors.request.use(
-  (config) => config,
-  (error) => Promise.reject(error)
-);
+// Flag para evitar loops infinitos de refresh
+let isRefreshing = false;
+let failedQueue = [];
 
-// Interceptor para manejar respuestas y errores.
-// De momento, si hay 401 dejamos que la app/redirecciones lo manejen.
+const processQueue = (error) => {
+  failedQueue.forEach(({ resolve, reject }) =>
+    error ? reject(error) : resolve()
+  );
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Aquí podrías, más adelante, implementar lógica para
-    // detectar 401 y llevar al usuario a /login, si quieres.
+    const original = error.config;
+
+    // Si es 401 y no es el propio endpoint de refresh/login/me
+    const isAuthEndpoint = ['/auth/login/', '/auth/refresh-token/', '/auth/me/']
+      .some(path => original.url?.includes(path));
+
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        // Encolar el request mientras se refresca
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => api(original)).catch(err => Promise.reject(err));
+      }
+
+      original._retry = true;
+      isRefreshing = true;
+
+      try {
+        await axios.post(
+          `${API_BASE_URL}/auth/refresh-token/`,
+          {},
+          { withCredentials: true }
+        );
+        processQueue(null);
+        return api(original); // reintenta el request original con el nuevo token
+      } catch (refreshError) {
+        processQueue(refreshError);
+        // Refresh falló: limpiar sesión y redirigir al login
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
     return Promise.reject(error);
   }
 );
 
-// ===== API DE AUTENTICACIÓN =====
 export const authAPI = {
   register: (userData) => api.post('/auth/register/', userData),
   login: (credentials) => api.post('/auth/login/', credentials),
   logout: () => api.post('/auth/logout/'),
   forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
   resetPassword: (data) => api.post('/auth/reset-password/', data),
-  getCurrentUser: () => api.get('/auth/user/'),
-
-  // === INVITACIONES (usadas en Register.jsx) ===
+  getCurrentUser: () => api.get('/auth/me/'),  // ← corregido
   verifyInvitation: (token) => api.post('/auth/invitations/validate/', { token }),
   registerWithInvitation: (userData) => api.post('/auth/register/', userData),
-
-  // === VERIFICACIÓN DE EMAIL ===
   verifyEmail: (token) => api.post('/auth/verify-email/', { token }),
 };
+
  // ===== API DE INVITACIONES (si quieres mantenerla) =====
  export const invitationsAPI = {
    verifyInvitation: (token) => authAPI.verifyInvitation(token),

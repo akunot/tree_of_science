@@ -26,25 +26,30 @@ export const AuthProvider = ({ children }) => {
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const initializeAuth = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        // ✅ Cargar datos de localStorage (solo `user`, tokens están en cookies HttpOnly)
-        if (isAuthenticated()) {
-          setUser(getUser());
-        } else {
-          setUser(null);
-        }
-      } catch (err) {
-        console.error('❌ [AUTH] Error en inicialización:', err);
-        setUser(null);
-      } finally {
-        setLoading(false);
-        setInitializing(false);
-      }
-    };
+      // Verificar con el backend si la cookie es válida
+      // (no confiar solo en localStorage)
+      const response = await authAPI.getCurrentUser();
+      const { user } = response.data;
+
+      // Sincronizar localStorage con la respuesta del backend
+      setAuthData({ user });
+      setUser(user);
+
+    } catch (err) {
+      // 401 = no hay sesión válida (cookie expirada o inexistente)
+      // Limpiar cualquier dato residual de localStorage
+      clearAuthData();
+      setUser(null);
+    } finally {
+      setLoading(false);
+      setInitializing(false);
+    }
+  };
 
     initializeAuth();
   }, []);

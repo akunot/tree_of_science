@@ -1,12 +1,10 @@
 from rest_framework import serializers
 from .models import Tree
 from bibliography.serializers import BibliographyListSerializer
-from .models import Bibliography
 import networkx as nx
-import json
-from bibx import read_scopus_csv, read_wos, read_scopus_bib, read_scopus_ris, Sap 
-import io
 from datetime import datetime
+from rest_framework.exceptions import ValidationError
+from .science_tree_builder import ScienceTreeBuilder
 
 
 class TreeCreateSerializer(serializers.ModelSerializer):
@@ -69,71 +67,14 @@ class TreeCreateSerializer(serializers.ModelSerializer):
         return self._compose_transformed_data(seed, nodes_with_attributes, links, stats)
 
     def _build_graph_from_file(self, archivo):
-        """
-        Lee el archivo de bibliografía y construye el grafo base usando Sap.
-        Lanza un error de validación si el archivo no es procesable.
-        """
-        from rest_framework.exceptions import ValidationError
-        from bibx.exceptions import InvalidIsiLineError
-
-        filename = (archivo.name or "").lower()
-
         try:
-            if filename.endswith('.csv'):
-                # Scopus CSV
-                with archivo.open('rb') as f:
-                    text_file = io.TextIOWrapper(f, encoding='utf-8')
-                    corpus = read_scopus_csv(text_file)
-
-            elif filename.endswith('.txt'):
-                # Web of Science / ISI TXT
-                with archivo.open('rb') as f:
-                    text_file = io.TextIOWrapper(f, encoding='utf-8')
-                    corpus = read_wos(text_file)
-
-            elif filename.endswith('.bib'):
-                # Nuevo: BibTeX (.bib)
-                with archivo.open('rb') as f:
-                    text_file = io.TextIOWrapper(f, encoding='utf-8')
-                    corpus = read_scopus_bib(text_file)
-            
-            elif filename.endswith('.ris'):
-                # Nuevo: RIS (.ris)
-                with archivo.open('rb') as f:
-                    text_file = io.TextIOWrapper(f, encoding='utf-8')
-                    corpus = read_scopus_ris(text_file)
-
-            else:
-                raise ValidationError(
-                    "Formato de archivo de bibliografía no soportado. Use archivos CSV (Scopus), TXT (WoS/ISI) o BIB (BibTeX)."
-                )
-        except InvalidIsiLineError as e:
-            # Archivo TXT no sigue el formato ISI/WoS esperado
-            raise ValidationError(
-                "El archivo de bibliografía no tiene el formato ISI/WoS válido. "
-                "Verifique que haya sido exportado correctamente desde la base de datos."
-            ) from e
+            return ScienceTreeBuilder().build_from_file(archivo)
+        except ValueError as e:
+            raise ValidationError(str(e)) from e
         except Exception as exc:
-            # Cualquier otro error de parsing se reporta como archivo no procesable
             raise ValidationError(
                 f"No se pudo procesar el archivo de bibliografía: {str(exc)}"
             ) from exc
-
-        sap = Sap()
-        try:
-            graph = sap.create_graph(corpus)
-            graph = sap.clean_graph(graph)
-            graph = sap.tree(graph)
-        except TypeError as e:
-            # Caso típico: "It's necessary to have some roots" cuando el RIS no genera raíces
-            if "roots" in str(e).lower():
-                raise ValidationError(
-                    "El archivo no tiene suficientes datos de citación para generar el árbol. "
-                    "Asegúrese de exportar desde Scopus incluyendo las 'References' y con al menos 100 artículos."
-                ) from e
-            raise ValidationError(f"Error al procesar el grafo: {str(e)}") from e
-
-        return graph
 
     def _extract_nodes_with_stats(self, graph):
         """
@@ -145,6 +86,7 @@ class TreeCreateSerializer(serializers.ModelSerializer):
             'trunks': 0,
             'leaves': 0,
             'total_value': 0,
+            'sum_sap': 0,
             'max_sap': 0,
             'min_sap': float('inf'),
         }
@@ -167,6 +109,7 @@ class TreeCreateSerializer(serializers.ModelSerializer):
 
             # Actualizar estadísticas globales
             stats['total_value'] += total_val
+            stats['sum_sap'] += sap_val
             stats['max_sap'] = max(stats['max_sap'], sap_val)
             if sap_val > 0:
                 stats['min_sap'] = min(stats['min_sap'], sap_val)
@@ -194,13 +137,8 @@ class TreeCreateSerializer(serializers.ModelSerializer):
         if total_val == 0:
             return None, None
 
-        # Clasificación dominante
-        if root_val > trunk_val and root_val > leaf_val:
-            dominant_group = 'root'
-        elif trunk_val > root_val and trunk_val > leaf_val:
-            dominant_group = 'trunk'
-        else:
-            dominant_group = 'leaf'
+        # Clasificación dominante: ya viene calculada por ScienceTreeClassifier
+        dominant_group = node_data.get('group', 'leaf')
 
         node_dict = {
             # Identificadores
@@ -265,7 +203,7 @@ class TreeCreateSerializer(serializers.ModelSerializer):
             "leaves": stats['leaves'],
             "total": stats['total'],
             "total_value": stats['total_value'],
-            "average_sap": stats['total_value'] / stats['total'] if stats['total'] > 0 else 0,
+            "average_sap": stats['sum_sap'] / stats['total'] if stats['total'] > 0 else 0,  
             "max_sap": stats['max_sap'],
             "min_sap": stats['min_sap'],
         }

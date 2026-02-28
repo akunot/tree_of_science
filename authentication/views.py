@@ -1398,3 +1398,9 @@ def db_clean_expired_invitations(request):
             {"error": f"Error al limpiar invitaciones expiradas: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """Valida la sesión activa y retorna datos del usuario"""
+    return Response({'user': UserSerializer(request.user).data})

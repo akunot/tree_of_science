@@ -67,4 +67,7 @@ urlpatterns = [
     path('admin/db/backup/', views.db_backup, name='db_backup'),
     path('admin/db/optimize/', views.db_optimize, name='db_optimize'),
     path('admin/db/clean-expired-invitations/', views.db_clean_expired_invitations, name='db_clean_expired_invitations'),
+
+    # Verificacion sesion activa
+    path('me/', views.me, name='me'),
 ]
