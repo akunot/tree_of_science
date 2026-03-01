@@ -27,25 +27,19 @@ const Layout = ({ children }) => {
     { name: 'Generar Árbol', href: '/generate', icon: TreePine },
     { name: 'Historial', href: '/history', icon: History },
     { name: 'Bibliografía', href: '/bibliography', icon: BookOpen },
-    
   ];
 
-  // Detectar cambios de viewport
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
-      if (!mobile) {
-        setSidebarOpen(true);
-      }
+      if (!mobile) setSidebarOpen(true);
     };
-
     window.addEventListener('resize', handleResize);
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Cerrar dropdown cuando cambiar de página
   useEffect(() => {
     setDropdownOpen(false);
   }, [location]);
@@ -56,9 +50,7 @@ const Layout = ({ children }) => {
   };
 
   const handleNavClick = () => {
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
+    if (isMobile) setSidebarOpen(false);
   };
 
   const getUserInitials = (user) => {
@@ -71,13 +63,11 @@ const Layout = ({ children }) => {
   const isActive = (href) => location.pathname === href;
 
   return (
-    <div 
-      className="min-h-screen relative overflow-hidden flex"
-      style={{
-        backgroundColor: "#0f1513",
-      }}
+    <div
+      className="min-h-screen flex overflow-hidden"
+      style={{ backgroundColor: "#0f1513" }}
     >
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile overlay */}
       <AnimatePresence>
         {sidebarOpen && isMobile && (
           <motion.div
@@ -91,12 +81,14 @@ const Layout = ({ children }) => {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}
       <motion.aside
         className={`${
-          isMobile ? 'fixed' : 'relative'
-        } inset-y-0 left-0 z-40 w-64 flex flex-col border-r border-[#19c3e6]/10`}
+          isMobile ? 'fixed inset-y-0 left-0' : 'relative'
+        } z-40 w-64 flex flex-col border-r border-[#19c3e6]/10`}
         style={{
+          /* Ocupa exactamente el alto de la ventana y nunca crece más */
+          height: '100vh',
           background: "rgba(15, 21, 19, 0.8)",
           backdropFilter: "blur(12px)",
         }}
@@ -104,8 +96,8 @@ const Layout = ({ children }) => {
         animate={isMobile ? (sidebarOpen ? { x: 0 } : { x: -256 }) : { x: 0 }}
         transition={{ type: "spring", damping: 20 }}
       >
-        {/* Logo Section */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-[#19c3e6]/10">
+        {/* Logo — altura fija */}
+        <div className="h-16 shrink-0 flex items-center justify-between px-6 border-b border-[#19c3e6]/10">
           <Link to="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="w-10 h-10 rounded-lg bg-[#19c3e6]/20 flex items-center justify-center border border-[#19c3e6]/30">
               <TreePine className="h-6 w-6 text-[#19c3e6]" strokeWidth={2.5} />
@@ -127,8 +119,8 @@ const Layout = ({ children }) => {
           )}
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
+        {/* Nav — crece y hace scroll interno si hay muchos items */}
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
           {navigation.map((item, idx) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -144,7 +136,7 @@ const Layout = ({ children }) => {
                   onClick={handleNavClick}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
                     active
-                      ? 'bg-[#19c3e6]/15 border-r-3 border-[#19c3e6] text-[#19c3e6]'
+                      ? 'bg-[#19c3e6]/15 border-r-2 border-[#19c3e6] text-[#19c3e6]'
                       : 'text-[#f5f5f0]/60 hover:text-[#f5f5f0] hover:bg-[#19c3e6]/5'
                   }`}
                 >
@@ -155,7 +147,6 @@ const Layout = ({ children }) => {
             );
           })}
 
-          {/* Item solo para administradores */}
           {user?.is_staff && (
             <motion.div
               initial={{ opacity: 0, x: -10 }}
@@ -167,7 +158,7 @@ const Layout = ({ children }) => {
                 onClick={handleNavClick}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
                   isActive('/admin')
-                    ? 'bg-[#19c3e6]/15 border-r-3 border-[#19c3e6] text-[#19c3e6]'
+                    ? 'bg-[#19c3e6]/15 border-r-2 border-[#19c3e6] text-[#19c3e6]'
                     : 'text-[#f5f5f0]/60 hover:text-[#f5f5f0] hover:bg-[#19c3e6]/5'
                 }`}
               >
@@ -180,41 +171,35 @@ const Layout = ({ children }) => {
           )}
         </nav>
 
-        {/* Footer - Create Button */}
-        <div className="p-4 border-t border-[#19c3e6]/10">
-          <Link 
-            to="/generate" 
-            onClick={handleNavClick}
-          >
+        {/* Footer — siempre pegado al fondo, nunca se desplaza */}
+        <div className="shrink-0 p-4 border-t border-[#19c3e6]/10">
+          <Link to="/generate" onClick={handleNavClick}>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-bold rounded-lg transition-all uppercase tracking-widest text-xs"
-              style={{
-                boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
-              }}
+              style={{ boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)" }}
             >
               <Plus className="w-4 h-4" />
-              Nuevo
+              Nuevo Árbol
             </motion.button>
           </Link>
         </div>
       </motion.aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+      {/* ── MAIN ────────────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen">
         {/* Header */}
         <motion.header
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="h-16 flex items-center justify-between px-4 md:px-8 border-b border-[#19c3e6]/10 relative z-20"
+          className="h-16 shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-[#19c3e6]/10 relative z-20"
           style={{
             background: "rgba(15, 21, 19, 0.9)",
             backdropFilter: "blur(12px)",
           }}
         >
-          {/* Mobile Menu Button */}
-          {isMobile && (
+          {isMobile ? (
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
@@ -223,80 +208,66 @@ const Layout = ({ children }) => {
             >
               <Menu className="w-5 h-5" />
             </motion.button>
+          ) : (
+            <div />
           )}
 
-          {/* Spacer for desktop */}
-          {!isMobile && <div />}
-
           {/* User Menu */}
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-3 px-3 py-2 hover:bg-[#19c3e6]/10 rounded-lg transition-colors"
-              >
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold text-[#f5f5f0]">
-                    {user?.first_name}
-                  </p>
-                  <p className="text-[9px] text-[#f5f5f0]/60">Investigador</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-[#19c3e6]/20 flex items-center justify-center border border-[#19c3e6]/30 text-[#19c3e6] font-bold text-xs">
-                  {getUserInitials(user)}
-                </div>
-                <ChevronDown className={`w-4 h-4 text-[#f5f5f0]/60 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
-              </motion.button>
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center gap-3 px-3 py-2 hover:bg-[#19c3e6]/10 rounded-lg transition-colors"
+            >
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold text-[#f5f5f0]">{user?.first_name}</p>
+                <p className="text-[9px] text-[#f5f5f0]/60">Investigador</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-[#19c3e6]/20 flex items-center justify-center border border-[#19c3e6]/30 text-[#19c3e6] font-bold text-xs">
+                {getUserInitials(user)}
+              </div>
+              <ChevronDown className={`w-4 h-4 text-[#f5f5f0]/60 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+            </motion.button>
 
-              {/* Dropdown Menu */}
-              <AnimatePresence>
-                {dropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 mt-2 w-56 rounded-lg border border-[#19c3e6]/10 overflow-hidden z-50"
-                    style={{
-                      background: "rgba(15, 21, 19, 0.95)",
-                      backdropFilter: "blur(12px)",
-                    }}
+            <AnimatePresence>
+              {dropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 mt-2 w-56 rounded-lg border border-[#19c3e6]/10 overflow-hidden z-50"
+                  style={{
+                    background: "rgba(15, 21, 19, 0.95)",
+                    backdropFilter: "blur(12px)",
+                  }}
+                >
+                  <div className="p-4 border-b border-[#19c3e6]/10">
+                    <p className="text-sm font-bold text-[#f5f5f0]">
+                      {user?.first_name} {user?.last_name}
+                    </p>
+                    <p className="text-xs text-[#f5f5f0]/60 truncate mt-1">{user?.email}</p>
+                  </div>
+                  <motion.button
+                    whileHover={{ x: 4 }}
+                    onClick={() => { handleLogout(); setDropdownOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors text-sm font-medium"
                   >
-                    {/* User Info */}
-                    <div className="p-4 border-b border-[#19c3e6]/10">
-                      <p className="text-sm font-bold text-[#f5f5f0]">
-                        {user?.first_name} {user?.last_name}
-                      </p>
-                      <p className="text-xs text-[#f5f5f0]/60 truncate mt-1">
-                        {user?.email}
-                      </p>
-                    </div>
-
-                    {/* Logout */}
-                    <motion.button
-                      whileHover={{ x: 4 }}
-                      onClick={() => {
-                        handleLogout();
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors text-sm font-medium"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Cerrar Sesión
-                    </motion.button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <LogOut className="w-4 h-4" />
+                    Cerrar Sesión
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.header>
 
-        {/* Main Content Area */}
+        {/* Content — scroll solo aquí */}
         <motion.main
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
-          className="flex-1 overflow-y-auto relative z-10"
+          className="flex-1 min-h-0 overflow-y-auto relative z-10"
         >
           {children}
         </motion.main>

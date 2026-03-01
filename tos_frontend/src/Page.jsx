@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen, TreePine, Users, Zap, TrendingUp, Share2, 
   ArrowRight, Download, Mail, FileText, BarChart3, AlertCircle
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const features = [
   {
@@ -182,7 +182,7 @@ function Hero() {
             </Link>
             <Link to="/admin-request">
               <button className="px-8 py-4 border border-white/10 font-bold rounded-lg hover:bg-white/5 transition-all text-slate-100 flex items-center gap-2 group">
-                Solicitar Acceso Administrador
+                Solicitar Acceso
                 <AlertCircle className="w-5 h-5" />
               </button>
             </Link>
@@ -624,7 +624,7 @@ function CTA() {
           </Link>
           <Link to="/admin-request">
             <button className="px-8 py-4 border border-white/10 font-bold rounded-lg hover:bg-white/5 transition-all text-slate-100 flex items-center gap-2 group">
-              Solicitar Acceso Administrador
+              Solicitar Acceso
               <AlertCircle className="w-5 h-5" />
             </button>
           </Link>
@@ -635,20 +635,47 @@ function CTA() {
 }
 
 function Footer() {
+  const [clicks, setClicks] = useState(0);
+
+  const handleTreeClick = () => {
+    setClicks(prev => prev + 1);
+  };
+  
   return (
     <footer className="py-16 border-t border-white/5 bg-background-dark">
       <div className="max-w-3xl mx-auto px-6 text-center">
-        {/* Brand */}
-        <div className="flex flex-col items-center gap-3 mb-6">
-          <div className="bg-primary/20 p-2 rounded-lg">
+        
+        {/* Brand & Easter Egg */}
+        <div className="flex flex-col items-center gap-3 mb-6 relative">
+          <div 
+            onClick={handleTreeClick}
+            className="bg-primary/20 p-2 rounded-lg cursor-pointer hover:scale-110 transition-transform select-none"
+            title="¿Qué pasa si haces clic?"
+          >
             <TreePine className="w-5 h-5 text-primary" />
           </div>
+          
+          {/* El Easter Egg Animado */}
+          <AnimatePresence>
+            {clicks >= 7 && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-12 whitespace-nowrap bg-background-dark/90 border border-primary/30 text-primary px-3 py-1 rounded-full text-xs font-mono shadow-[0_0_15px_rgba(25,195,230,0.4)] z-10"
+              >
+                ✨ Hecho por Sergio Alejandro Castro Botero ✨
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div>
             <h1 className="text-lg font-bold tracking-tight text-white">Tree of Science</h1>
             <p className="text-xs text-slate-500">Universidad Nacional de Colombia</p>
           </div>
         </div>
 
+        {/* Descripción */}
         <p className="text-slate-500 text-sm leading-relaxed mb-8">
           Redefiniendo el panorama de revisiones de literatura a través del crecimiento orgánico y análisis de precisión.
         </p>
@@ -663,18 +690,27 @@ function Footer() {
           </p>
         </div>
 
-        {/* Bottom */}
+        {/* Bottom / Copyright */}
         <div className="pt-6 border-t border-white/5">
           <p className="text-xs text-slate-600">
             © {new Date().getFullYear()} Universidad Nacional de Colombia. Todos los derechos reservados.
           </p>
         </div>
+        
       </div>
     </footer>
   );
 }
 
 export default function LandingPage() {
+  useEffect(() => {
+    // Mensaje con estilos CSS en la consola
+    console.log(
+      "%c🌲 Tree of Science %c\n\nDesarrollado con ☕ y código limpio por Sergio Alejandro Castro Botero \nhttps://github.com/akunot",
+      "color: #19c3e6; font-size: 24px; font-weight: bold; text-shadow: 0 0 10px rgba(25,195,230,0.5);",
+      "color: #94a3b8; font-size: 14px; font-family: monospace;"
+    );
+  }, []);
   return (
     <div className="min-h-screen bg-background-dark text-slate-100">
       <Header />

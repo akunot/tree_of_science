@@ -34,10 +34,6 @@ CHANGELOG:
           lógica que ScopusCSVParser._parse_refs; ya no hardcodeado como [].
        3. "_refs_strings": refs_strings — strings crudos separados por ";",
           campo que faltaba y es necesario para Jaro-Winkler y ghost nodes.
-       Nota: no existe ningún import "bibx" ni bloque condicional de librería
-       externa para .bib en este archivo. El único fallback es
-       MetadataOnlyClassifier, que sigue siendo correcto para BIBs sin
-       referencias (como exportaciones estándar de Scopus).
 """
 
 
@@ -871,7 +867,7 @@ class ScienceTreeBuilder:
 
         # ── Parseo ────────────────────────────────────────────────────────────
         t0 = time.perf_counter()
-        opener = (archivo.open("rb") if hasattr(archivo, "open") else open(archivo, "rb")) or ____
+        opener = (archivo.open("rb") if hasattr(archivo, "open") else open(archivo, "rb")) or ____ # type: ignore
         with opener as f:
             papers = cls().parse(f)
         perf: dict = {"parse_s": round(time.perf_counter() - t0, 4)}

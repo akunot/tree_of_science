@@ -18,10 +18,10 @@ const TreeGenerator = () => {
     title: '',
     bibliography: '',
   });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
   const navigate = useNavigate();
 
-  // Consultar bibliografías disponibles
   const { data: bibliographies = [], isLoading: bibliographiesLoading } = useQuery({
     queryKey: ['bibliographies'],
     queryFn: () => bibliographyAPI.list().then(res => res.data),
@@ -41,10 +41,7 @@ const TreeGenerator = () => {
         data.seed?.[0] ||
         '';
 
-      // Normalizar a string
       const msg = typeof rawMessage === 'string' ? rawMessage : String(rawMessage || '');
-
-      // Interpretar y dar mensajes más específicos según el contenido
       let friendlyMessage = msg;
 
       if (!msg) {
@@ -60,9 +57,7 @@ const TreeGenerator = () => {
         friendlyMessage =
           'No se pudo generar el árbol: el archivo de bibliografía no contiene información suficiente o procesable. ' +
           'Verifique que incluya registros completos (títulos, autores, etc.).';
-
       } else if (msg.includes('no tiene suficientes datos de citación')) {
-        // Caso específico del TypeError de "no roots" en Sap
         friendlyMessage =
           'No se pudo generar el árbol porque el archivo (RIS/BIB) no contiene una red de citaciones entre los artículos.\n\n' +
           'Para que el árbol funcione, el archivo debe tener referencias internas entre los artículos (no solo títulos y autores).\n\n' +
@@ -76,68 +71,78 @@ const TreeGenerator = () => {
           '   - References (obligatorio).\n' +
           '5) Idealmente exporte al menos 100–300 artículos.\n\n' +
           'Sin el campo de referencias, bibx no puede construir la red de co-citación y el árbol no tendrá raíces.';
-
       } else if (msg.startsWith('Error al procesar el grafo')) {
         friendlyMessage =
           msg +
           ' Revise que el archivo provenga de Scopus/Web of Science y que incluya la información de citas.';
-
       } else if (msg.startsWith('No se pudo procesar el archivo de bibliografía')) {
         friendlyMessage =
           msg +
           ' Revise que el archivo no esté corrupto y que corresponda a un export estándar de la base de datos.';
       }
 
-      setError(friendlyMessage);
+      setSubmitError(friendlyMessage);
     },
   });
 
+  // Validación de campos individuales
+  const validateField = (name, value) => {
+    if (!value || (typeof value === 'string' && !value.trim())) {
+      const labels = {
+        title: 'El título del árbol',
+        seed: 'La descripción del árbol',
+        bibliography: 'La bibliografía de referencia',
+      };
+      return `${labels[name]} es requerido.`;
+    }
+    return '';
+  };
+
+  const validateAll = () => {
+    const newErrors = {};
+    ['title', 'seed', 'bibliography'].forEach((field) => {
+      const err = validateField(field, formData[field]);
+      if (err) newErrors[field] = err;
+    });
+    return newErrors;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    setError('');
+    setSubmitError('');
 
-    const seed = formData.seed.trim();
-    const title = formData.title.trim();
-    const {bibliography} = formData;
-
-    if (!seed) {
-      setError('La semilla conceptual es requerida.');
-      return;
-    }
-
-    if (!title) {
-      setError('El título del árbol es requerido.');
-      return;
-    }
-
-    if (!bibliography) {
-      setError('Debe seleccionar una bibliografía de referencia.');
+    const newErrors = validateAll();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     const payload = {
-      seed,
-      title,
-      bibliography,
+      seed: formData.seed.trim(),
+      title: formData.title.trim(),
+      bibliography: formData.bibliography,
     };
 
     generateTreeMutation.mutate(payload);
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    setError('');
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Limpiar error del campo al escribir
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    setSubmitError('');
   };
 
   const handleBibliographyChange = (value) => {
-    setFormData({
-      ...formData,
-      bibliography: value === 'none' ? '' : value,
-    });
-    setError('');
+    const val = value === 'none' ? '' : value;
+    setFormData((prev) => ({ ...prev, bibliography: val }));
+    if (errors.bibliography) {
+      setErrors((prev) => ({ ...prev, bibliography: '' }));
+    }
+    setSubmitError('');
   };
 
   const seedExamples = [
@@ -147,6 +152,14 @@ const TreeGenerator = () => {
     "Neurociencia cognitiva",
     "Energías renovables sostenibles"
   ];
+
+  // Helper: clases de input según estado de error
+  const inputClass = (field) =>
+    `w-full px-4 py-3 rounded-lg border transition-all bg-[#19c3e6]/5 text-[#f5f5f0] placeholder-[#f5f5f0]/40 focus:outline-none ${
+      errors[field]
+        ? 'border-red-500/60 focus:border-red-500'
+        : 'border-[#19c3e6]/20 focus:border-[#19c3e6]'
+    }`;
 
   return (
     <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8">
@@ -172,51 +185,29 @@ const TreeGenerator = () => {
           transition={{ delay: 0.1 }}
           className="lg:col-span-2 space-y-6"
         >
-          {/* Error Alert */}
-          {error && (
+          {/* Error global de submit */}
+          {submitError && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="p-4 rounded-lg border border-red-500/20 bg-red-500/10 flex items-start gap-3"
             >
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{error}</p>
+              <p className="text-sm text-red-400 whitespace-pre-line">{submitError}</p>
             </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Semilla */}
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+
+            {/* 1. Título del Árbol */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="space-y-3"
+              className="space-y-2"
             >
               <label className="block text-sm font-bold text-[#f5f5f0] uppercase tracking-widest">
-                Semilla Conceptual *
-              </label>
-              <textarea
-                name="seed"
-                placeholder="Ingrese el concepto o tema principal para generar el árbol..."
-                value={formData.seed}
-                onChange={handleChange}
-                className="w-full min-h-[120px] p-4 rounded-lg border border-[#19c3e6]/20 bg-[#19c3e6]/5 text-[#f5f5f0] placeholder-[#f5f5f0]/40 focus:border-[#19c3e6] focus:outline-none transition-all resize-none"
-                required
-              />
-              <p className="text-xs text-[#f5f5f0]/60">
-                Describa el tema o concepto principal que desea explorar
-              </p>
-            </motion.div>
-
-            {/* Título opcional */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="space-y-3"
-            >
-              <label className="block text-sm font-bold text-[#f5f5f0] uppercase tracking-widest">
-                Título del Árbol *
+                Título del Árbol <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -224,39 +215,79 @@ const TreeGenerator = () => {
                 placeholder="Ej: Investigación en IA Médica"
                 value={formData.title}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg border border-[#19c3e6]/20 bg-[#19c3e6]/5 text-[#f5f5f0] placeholder-[#f5f5f0]/40 focus:border-[#19c3e6] focus:outline-none transition-all"
+                className={inputClass('title')}
               />
-              <p className="text-xs text-[#f5f5f0]/60">
-                Asigne un nombre descriptivo a su árbol
-              </p>
+              {errors.title ? (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.title}
+                </p>
+              ) : (
+                <p className="text-xs text-[#f5f5f0]/60">
+                  Asigne un nombre descriptivo a su árbol
+                </p>
+              )}
             </motion.div>
 
-            {/* Selección de bibliografía */}
+            {/* 2. Descripción del Árbol */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="space-y-2"
+            >
+              <label className="block text-sm font-bold text-[#f5f5f0] uppercase tracking-widest">
+                Descripción del Árbol <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                name="seed"
+                placeholder="Describa el concepto o tema principal para generar el árbol..."
+                value={formData.seed}
+                onChange={handleChange}
+                className={`${inputClass('seed')} min-h-[120px] resize-none`}
+              />
+              {errors.seed ? (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.seed}
+                </p>
+              ) : (
+                <p className="text-xs text-[#f5f5f0]/60">
+                  Describa el tema o concepto principal que desea explorar
+                </p>
+              )}
+            </motion.div>
+
+            {/* 3. Bibliografía de Referencia */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
-              className="space-y-3"
+              className="space-y-2"
             >
               <label className="block text-sm font-bold text-[#f5f5f0] uppercase tracking-widest">
-                Bibliografía de Referencia *
+                Bibliografía de Referencia <span className="text-red-400">*</span>
               </label>
               <select
                 value={formData.bibliography || 'none'}
                 onChange={(e) => handleBibliographyChange(e.target.value)}
                 disabled={bibliographiesLoading}
-                className="w-full px-4 py-3 rounded-lg border border-[#19c3e6]/20 bg-[#19c3e6]/5 text-[#f5f5f0] focus:border-[#19c3e6] focus:outline-none transition-all disabled:opacity-50"
+                className={`${inputClass('bibliography')} disabled:opacity-50`}
               >
-                 <option value="none" className="bg-[#0f1513]">Seleccione una bibliografía...</option>
+                <option value="none" className="bg-[#0f1513]">Seleccione una bibliografía...</option>
                 {bibliographies.map((bibliography) => (
                   <option key={bibliography.id} value={bibliography.id.toString()} className="bg-[#0f1513]">
                     {bibliography.nombre_archivo}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-[#f5f5f0]/60">
-                Seleccione un archivo de referencia para enriquecer el árbol
-              </p>
+              {errors.bibliography ? (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.bibliography}
+                </p>
+              ) : (
+                <p className="text-xs text-[#f5f5f0]/60">
+                  Seleccione un archivo de referencia para enriquecer el árbol
+                </p>
+              )}
             </motion.div>
 
             {/* Botón de generación */}
@@ -264,7 +295,7 @@ const TreeGenerator = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="pt-6"
+              className="pt-4"
             >
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -272,9 +303,7 @@ const TreeGenerator = () => {
                 type="submit"
                 disabled={generateTreeMutation.isPending}
                 className="w-full px-6 py-4 bg-[#19c3e6] hover:bg-[#19c3e6]/90 text-[#1a2e05] font-black rounded-lg uppercase tracking-widest text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{
-                  boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)"
-                }}
+                style={{ boxShadow: "0 0 20px rgba(25, 195, 230, 0.3)" }}
               >
                 {generateTreeMutation.isPending ? (
                   <>
@@ -308,7 +337,7 @@ const TreeGenerator = () => {
             className="space-y-3"
           >
             <h3 className="text-sm font-bold text-[#f5f5f0] uppercase tracking-widest">
-              Ejemplos de Semillas
+              Ejemplos de Descripciones
             </h3>
             <p className="text-xs text-[#f5f5f0]/60">Ideas para comenzar su investigación</p>
             <div className="space-y-2">
@@ -317,7 +346,10 @@ const TreeGenerator = () => {
                   key={idx}
                   whileHover={{ scale: 1.02, x: 4 }}
                   type="button"
-                  onClick={() => setFormData({ ...formData, seed: example })}
+                  onClick={() => {
+                    setFormData((prev) => ({ ...prev, seed: example }));
+                    if (errors.seed) setErrors((prev) => ({ ...prev, seed: '' }));
+                  }}
                   className="w-full text-left p-3 rounded-lg border border-[#19c3e6]/20 hover:border-[#19c3e6] bg-[#19c3e6]/5 hover:bg-[#19c3e6]/10 transition-all text-xs text-[#f5f5f0]/80 hover:text-[#f5f5f0]"
                 >
                   {example}
@@ -332,10 +364,7 @@ const TreeGenerator = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
             className="p-4 rounded-xl border border-[#19c3e6]/20"
-            style={{
-              background: "rgba(255, 255, 255, 0.03)",
-              backdropFilter: "blur(12px)",
-            }}
+            style={{ background: "rgba(255, 255, 255, 0.03)", backdropFilter: "blur(12px)" }}
           >
             <div className="flex items-center gap-2 mb-4">
               <BookOpen className="w-4 h-4 text-[#19c3e6]" />
@@ -371,10 +400,7 @@ const TreeGenerator = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="p-4 rounded-xl border border-[#19c3e6]/20"
-            style={{
-              background: "rgba(255, 255, 255, 0.03)",
-              backdropFilter: "blur(12px)",
-            }}
+            style={{ background: "rgba(255, 255, 255, 0.03)", backdropFilter: "blur(12px)" }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-4 h-4 text-[#19c3e6]" />
@@ -384,9 +410,9 @@ const TreeGenerator = () => {
             </div>
             <div className="space-y-3">
               {[
-                'Ingrese una semilla conceptual que represente su tema de investigación',
-                'Opcionalmente, seleccione una bibliografía de referencia',
-                'El sistema generará un árbol de conocimiento estructurado'
+                'Asigne un título claro que identifique su árbol',
+                'Escriba una descripción del tema o área de investigación',
+                'Seleccione una bibliografía de referencia para enriquecer el árbol',
               ].map((step, idx) => (
                 <motion.div
                   key={idx}
@@ -410,10 +436,7 @@ const TreeGenerator = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
             className="p-4 rounded-xl border border-[#19c3e6]/20"
-            style={{
-              background: "rgba(255, 255, 255, 0.03)",
-              backdropFilter: "blur(12px)",
-            }}
+            style={{ background: "rgba(255, 255, 255, 0.03)", backdropFilter: "blur(12px)" }}
           >
             <h4 className="text-sm font-bold text-[#f5f5f0] uppercase tracking-widest mb-3">
               💡 Consejos
@@ -421,7 +444,7 @@ const TreeGenerator = () => {
             <ul className="space-y-2 text-xs text-[#f5f5f0]/70">
               <li className="flex items-start gap-2">
                 <span className="text-[#19c3e6] font-bold">•</span>
-                <span>Sea específico en su semilla para mejores resultados</span>
+                <span>Sea específico en su descripción para mejores resultados</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#19c3e6] font-bold">•</span>

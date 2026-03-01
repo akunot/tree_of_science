@@ -683,7 +683,7 @@ const TreeDetail = () => {
           </motion.button>
           <div className="min-w-0">
             <h1 className="text-2xl md:text-3xl font-black text-[#f5f5f0] tracking-tight">{tree.title}</h1>
-            <p className="text-xs md:text-sm text-[#f5f5f0]/60 mt-1">Semilla: {tree.seed}</p>
+            <p className="text-xs md:text-sm text-[#f5f5f0]/60 mt-1">Descripcion del arbol: {tree.seed}</p>
           </div>
         </div>
 
