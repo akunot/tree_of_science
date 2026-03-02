@@ -7,7 +7,7 @@ Aplicación web para la generación y gestión de **árboles de conocimiento cie
 ## ✨ Características
 
 - **Generación de Árboles de la Ciencia** a partir de semillas conceptuales.
-- **Gestión de Bibliografías**: subida y organización de archivos de referencia (PDF, DOC, DOCX, TXT).
+- **Gestión de Bibliografías**: subida y organización de archivos de referencia (BIB, RIS, CSV y TXT).
 - **Historial de árboles** generados por usuario con búsqueda y paginación.
 - **Descarga en múltiples formatos**: JSON, PDF y CSV.
 - **Interfaz moderna** con React + Tailwind CSS + shadcn/ui.
