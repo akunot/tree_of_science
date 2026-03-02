@@ -48,7 +48,7 @@ const steps = [
   {
     number: 2,
     title: "Carga de Bibliografía",
-    desc: "Suba sus archivos en múltiples formatos (BibTeX, RIS, JSON). El sistema organiza automáticamente sus documentos.",
+    desc: "Suba sus archivos en múltiples formatos (BibTeX, RIS, TXT, CSV). El sistema organiza automáticamente sus documentos.",
   },
   {
     number: 3,
@@ -60,6 +60,25 @@ const steps = [
     title: "Análisis y Descarga",
     desc: "Analice visualizaciones interactivas y descargue resultados en diversos formatos para publicación.",
   },
+];
+
+const algorithmDetails = [
+  {
+    title: "1. Nuevo Motor Matemático (Cálculo SAP Lineal)",
+    content: "En lugar de simular probabilidades como hacen las herramientas tradicionales, el algoritmo multiplica el grado de entrada por el de salida de cada artículo — un cálculo lineal O(N) que identifica con precisión matemática los verdaderos puentes de conocimiento en tu corpus."
+  },
+  {
+    title: "2. Minería de Clásicos Ocultos (Ghost Nodes)",
+    content: "El sistema no se limita a los artículos que subiste. Escanea la bibliografía interna de cada documento y extrae automáticamente los papers fundacionales que nunca descargaste — los que aparecen citados en todo el corpus pero no estaban en tu archivo original."
+  },
+  {
+    title: "3. Poda Topológica y Aislamiento de Ruido",
+    content: "El algoritmo extrae el Componente Conectado Más Grande del grafo y descarta los artículos aislados o sin conexiones relevantes. Lo que queda no es todo tu corpus — es la élite estructural de tu búsqueda."
+  },
+  {
+    title: "4. Motor Dual Tolerante a Fallos",
+    content: "Si el archivo viene con referencias incompletas o metadatos rotos, el sistema no colapsa. Activa un clasificador heurístico basado en años y conteo de citas para garantizar que siempre obtengas un resultado útil, independientemente de la calidad del insumo."
+  }
 ];
 
 const fadeUp = {
@@ -91,6 +110,12 @@ function Header() {
           </a>
           <a className="text-sm font-medium hover:text-primary transition-colors" href="#how-it-works">
             Cómo Funciona
+          </a>
+          <a className="text-sm font-medium hover:text-primary transition-colors" href="#algorithm">
+            Algoritmo
+          </a>
+          <a className="text-sm font-medium hover:text-primary transition-colors" href="#best-practices">
+            Buenas Prácticas
           </a>
           <a className="text-sm font-medium hover:text-primary transition-colors" href="#faq">
             Preguntas
@@ -513,13 +538,205 @@ function HowItWorks() {
   );
 }
 
+function AlgorithmExplanation() {
+  const [openIndex, setOpenIndex] = useState(null);
+
+  return (
+    <section id="algorithm" className="py-24 bg-background-dark relative border-t border-white/5 overflow-hidden">
+      {/* Resplandor de fondo sutil (Background Glow) */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-primary/5 blur-[120px] pointer-events-none" />
+
+      <div className="max-w-4xl mx-auto px-6 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-primary text-sm font-bold tracking-[0.2em] uppercase mb-4">
+            Innovación Tecnológica
+          </h2>
+          <h3 className="text-3xl md:text-4xl font-bold text-white mb-6">
+            El Algoritmo Tree of Science (v2.0)
+          </h3>
+          <p className="text-slate-400 max-w-2xl mx-auto">
+            Hemos reconstruido el núcleo de nuestra plataforma desde cero. Nuestra nueva arquitectura abandona los cálculos tradicionales de teoría de redes en favor de un motor algorítmico propio, diseñado específicamente para la revisión sistemática de literatura.
+          </p>
+        </motion.div>
+
+        <div className="space-y-4">
+          {algorithmDetails.map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="glass-card rounded-lg border border-primary/20 bg-primary/5 overflow-hidden hover:border-primary/40 transition-colors"
+            >
+              <button
+                onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                className="w-full px-6 py-5 flex items-center justify-between text-left"
+              >
+                <h4 className="font-bold text-white md:text-lg">{item.title}</h4>
+                <div className={`transition-transform duration-300 ml-4 flex-shrink-0 ${openIndex === i ? "rotate-90" : ""}`}>
+                  <ArrowRight className="w-5 h-5 text-primary" />
+                </div>
+              </button>
+              <AnimatePresence>
+                {openIndex === i && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="px-6 pb-6 text-slate-300 text-sm md:text-base leading-relaxed border-t border-primary/10 mt-2 pt-4">
+                      {item.content}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const bestPractices = [
+  {
+    step: "01",
+    title: "La exportación lo es todo",
+    desc: "CSV y TXT son los formatos recomendados — son los únicos que soportan Referencias Citadas, el insumo que el algoritmo necesita para construir conexiones reales. BibTeX y RIS funcionan, pero el sistema cae en modo heurístico: obtendrás un árbol, aunque menos preciso.",
+  },
+  {
+    step: "02",
+    title: "Entra con precisión, sal con claridad",
+    desc: "Tu árbol será tan bueno como la búsqueda que lo originó. Afina tu ecuación con operadores booleanos (AND, OR, NOT) antes de exportar — un término de más puede llenar tu corpus de artículos irrelevantes.",
+  },
+  {
+    step: "03",
+    title: "El tamaño sí importa (en el buen sentido)",
+    desc: "El punto óptimo está entre 100 y 2.000 artículos. Menos de 100 y el grafo queda sin estructura; más de 3.000 y empieza a diluirse. Si tu búsqueda arroja cifras muy grandes, refínala antes de proceder.",
+  },
+  {
+    step: "04",
+    title: "El árbol guía. Tú decides.",
+    desc: "Lee primero las Raíces para entender los cimientos del campo, después los Troncos para ver cómo evolucionó, y termina con las Hojas para identificar las preguntas abiertas de hoy.",
+  },
+  {
+    step: "05",
+    title: "La ventana de tiempo lo cambia todo",
+    desc: "Deja el año de inicio abierto para capturar las verdaderas Raíces históricas. Si acotaste la búsqueda a los últimos años, las Raíces serán los más citados de esa ventana — no los clásicos absolutos del campo.",
+  },
+];
+
+function BestPractices() {
+  return (
+    <section
+      id="best-practices"
+      className="py-24 bg-forest/20 relative border-t border-white/5"
+    >
+      <div className="max-w-7xl mx-auto px-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center max-w-3xl mx-auto mb-20"
+        >
+          <h2 className="text-primary text-sm font-bold tracking-[0.2em] uppercase mb-4">
+            Buenas Prácticas
+          </h2>
+          <h3 className="text-3xl md:text-5xl font-bold text-white mb-6">
+            Cómo obtener los mejores resultados
+          </h3>
+          <p className="text-slate-400">
+            El algoritmo es determinista: resultados de calidad dependen de
+            insumos de calidad. Estos cuatro principios marcan la diferencia
+            entre un árbol revelador y uno con ruido.
+          </p>
+        </motion.div>
+
+        {/* Cards Grid */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {bestPractices.slice(0, 4).map((item, i) => (
+            <motion.div
+              key={item.step}
+              custom={i}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeUp}
+              className="glass-card rounded-xl border border-white/5 hover:border-primary/30 transition-all p-8 flex gap-6 group backdrop-blur"
+            >
+              {/* Step number */}
+              <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <span className="text-primary font-bold text-sm font-mono">
+                  {item.step}
+                </span>
+              </div>
+
+              {/* Content */}
+              <div>
+                <h4 className="text-xl font-bold text-white mb-3 group-hover:text-primary transition-colors">
+                  {item.title}
+                </h4>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  {item.desc}
+                </p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Card 05 — ancho completo */}
+        <motion.div
+          custom={4}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeUp}
+          className="glass-card rounded-xl border border-white/5 hover:border-primary/30 transition-all p-8 flex gap-6 group backdrop-blur mt-6"
+        >
+          <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <span className="text-primary font-bold text-sm font-mono">05</span>
+          </div>
+          <div>
+            <h4 className="text-xl font-bold text-white mb-3 group-hover:text-primary transition-colors">
+              {bestPractices[4].title}
+            </h4>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              {bestPractices[4].desc}
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Nota al pie sutil */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.4 }}
+          className="text-center text-slate-600 text-xs mt-12 max-w-xl mx-auto"
+        >
+          ¿Tu corpus no produce un árbol estructurado? Probablemente la
+          exportación no incluye referencias citadas. Revisa el paso 01.
+        </motion.p>
+      </div>
+    </section>
+  );
+}
+
 function FAQ() {
   const [openIndex, setOpenIndex] = useState(null);
 
   const faqs = [
     {
       q: "¿Qué formatos de archivo soporta la plataforma?",
-      a: "Soportamos múltiples formatos: BibTeX, RIS, JSON, CSV y más. Los archivos se convierten automáticamente a nuestro formato interno optimizado.",
+      a: "Soportamos múltiples formatos: BibTeX, RIS, TXT y CSV. Los archivos se convierten automáticamente a nuestro formato interno optimizado.",
     },
     {
       q: "¿Cómo se protegen mis datos?",
@@ -560,22 +777,35 @@ function FAQ() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.05 }}
-              className="glass-card rounded-lg border border-white/5 overflow-hidden"
+              /* Aplicamos los estilos visuales premium aquí */
+              className="glass-card rounded-lg border border-primary/20 bg-primary/5 overflow-hidden hover:border-primary/40 transition-colors"
             >
               <button
                 onClick={() => setOpenIndex(openIndex === i ? null : i)}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                className="w-full px-6 py-5 flex items-center justify-between text-left"
               >
-                <h4 className="text-left font-bold text-white">{faq.q}</h4>
-                <div className={`transition-transform ${openIndex === i ? "rotate-180" : ""}`}>
+                <h4 className="font-bold text-white md:text-lg">{faq.q}</h4>
+                {/* Rotación suave de 90 grados para la flecha */}
+                <div className={`transition-transform duration-300 ml-4 flex-shrink-0 ${openIndex === i ? "rotate-90" : ""}`}>
                   <ArrowRight className="w-5 h-5 text-primary" />
                 </div>
               </button>
-              {openIndex === i && (
-                <div className="px-6 pb-4 border-t border-white/5 text-slate-400">
-                  {faq.a}
-                </div>
-              )}
+              
+              {/* Animación de Framer Motion para deslizar el contenido */}
+              <AnimatePresence>
+                {openIndex === i && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="px-6 pb-6 text-slate-300 text-sm md:text-base leading-relaxed border-t border-primary/10 mt-2 pt-4">
+                      {faq.a}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           ))}
         </div>
@@ -718,6 +948,8 @@ export default function LandingPage() {
         <Hero />
         <Features />
         <HowItWorks />
+        <AlgorithmExplanation />
+        <BestPractices /> 
         <FAQ />
         <CTA />
       </main>

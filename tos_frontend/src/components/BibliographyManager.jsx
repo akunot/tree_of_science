@@ -17,7 +17,6 @@ import {
 
 // ── Iconos por extensión ─────────────────────────────────────────────────────
 const FILE_TYPES = {
-  pdf:  { bg: 'bg-red-500/15',    border: 'border-red-500/30',    text: 'text-red-400',    label: 'PDF'  },
   csv:  { bg: 'bg-green-500/15',  border: 'border-green-500/30',  text: 'text-green-400',  label: 'CSV'  },
   txt:  { bg: 'bg-slate-500/15',  border: 'border-slate-400/30',  text: 'text-slate-400',  label: 'TXT'  },
   ris:  { bg: 'bg-purple-500/15', border: 'border-purple-500/30', text: 'text-purple-400', label: 'RIS'  },

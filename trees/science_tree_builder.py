@@ -77,18 +77,53 @@ def _generate_canonical_id(author: str, year: int, title: str) -> str:
 # PARSERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class WoSParser:
+class TextRecordParser:
     """
-    Parser para archivos Web of Science (.txt, formato ISI/WoS).
-    Procesamiento línea a línea (streaming) — O(1) memoria por línea.
+    Parser híbrido para archivos .txt exportados desde Web of Science (ISI)
+    o Scopus (Plain Text).
+
+    · O(1) de memoria por línea en el path WoS (streaming).
+    · O(N) proporcional al número de registros en el path Scopus.
+    · Mismo contrato de salida para ambos formatos (dict con las
+      mismas claves: id, label, title, authors, year, doi, times_cited,
+      references, _refs_raw, url, source).
     """
 
+    # =========================================================================
+    # ENRUTADOR PRINCIPAL
+    # =========================================================================
+
     def parse(self, file_obj) -> list:
+        """
+        Lee el archivo completo, detecta el formato y delega al parser
+        correspondiente.
+
+        Detección:
+          · "Scopus" en las primeras líneas  → _parse_scopus_txt()
+          · "EXPORT DATE:" en las primeras líneas → _parse_scopus_txt()
+          · Cualquier otro caso              → _parse_wos_isi()
+        """
         text = file_obj.read() if hasattr(file_obj, "read") else file_obj
         if isinstance(text, bytes):
             text = text.decode("utf-8", errors="replace")
         text = text.lstrip("\ufeff")
 
+        # Inspeccionar solo el encabezado para minimizar trabajo de detección
+        head = text[:500]
+        if re.search(r'^Scopus\b', head, re.MULTILINE) or "EXPORT DATE:" in head:
+            return self._parse_scopus_txt(text)
+        return self._parse_wos_isi(text)
+
+    # =========================================================================
+    # PATH WoS ISI — lógica ORIGINAL sin ninguna modificación
+    # =========================================================================
+
+    def _parse_wos_isi(self, text: str) -> list:
+        """
+        Contenido exacto del método parse() original de WoSParser.
+        No se modificó ninguna línea de la lógica interna.
+        Procesamiento en streaming línea a línea — O(1) de memoria.
+        """
         papers, current, current_tag, in_cr = [], {}, None, False
         for line in text.splitlines():
             if line.strip() == "ER":
@@ -121,6 +156,7 @@ class WoSParser:
         return papers
 
     def _finalize(self, r: dict) -> dict:
+        """_finalize original de WoSParser — sin modificaciones."""
         def j(v): return " ".join(v) if isinstance(v, list) else (v or "")
         def i(v):
             try: return int(str(v).strip())
@@ -146,11 +182,162 @@ class WoSParser:
             "url": None, "source": "wos",
         }
 
+    # =========================================================================
+    # PATH Scopus Plain Text — parser NUEVO
+    # =========================================================================
+
+    # Palabras clave que identifican el inicio de la sección de metadatos/refs
+    _SCOPUS_FOOTER_RE = re.compile(
+        r'^(REFERENCES:|DOCUMENT TYPE:|PUBLICATION STAGE:|OPEN ACCESS:)',
+        re.MULTILINE,
+    )
+
+    def _parse_scopus_txt(self, text: str) -> list:
+        """
+        Parsea archivos .txt exportados desde Scopus en formato Plain Text.
+
+        Estructura del archivo:
+          • Encabezado: "Scopus\\nEXPORT DATE: DD Month YYYY"
+          • Registros separados por líneas en blanco, donde cada registro
+            ocupa DOS bloques consecutivos (separados por \\n\\n):
+              CHUNK-A: autores / AUTHOR FULL NAMES / IDs / título /
+                       (año) revista "Cited X times." / DOI: ... / URL
+              CHUNK-B: REFERENCES: ref1; ref2; ...
+                       DOCUMENT TYPE: ...
+                       PUBLICATION STAGE: ...
+                       [OPEN ACCESS: ...]
+        """
+        # Dividir en bloques por una o más líneas en blanco
+        chunks = [c.strip() for c in re.split(r'\n{2,}', text) if c.strip()]
+
+        # Saltar chunk(s) de encabezado
+        i = 0
+        while i < len(chunks) and re.match(
+            r'^(Scopus\b|EXPORT DATE:)', chunks[i], re.IGNORECASE
+        ):
+            i += 1
+
+        papers: list = []
+        while i < len(chunks):
+            chunk_a = chunks[i]
+            i += 1
+
+            # El chunk siguiente es el pie del registro si empieza con
+            # REFERENCES:, DOCUMENT TYPE: o PUBLICATION STAGE:
+            chunk_b = ""
+            if i < len(chunks) and self._SCOPUS_FOOTER_RE.match(chunks[i]):
+                chunk_b = chunks[i]
+                i += 1
+
+            if p := self._parse_scopus_record(chunk_a, chunk_b):
+                papers.append(p)
+
+        return papers
+
+    def _parse_scopus_record(
+        self, chunk_a: str, chunk_b: str
+    ) -> Optional[dict]:
+        """
+        Extrae los campos de un registro Scopus Plain Text a partir de
+        los dos bloques que lo componen (ver _parse_scopus_txt).
+
+        Campos extraídos con regex:
+          title        — línea inmediatamente anterior a la línea "(año) …"
+          year         — primer grupo (\\d{4}) en la línea de info
+          times_cited  — "Cited X times" en la línea de info
+          doi          — "DOI: 10.xxx" en chunk_a
+          authors      — línea "AUTHOR FULL NAMES: …" (sin IDs numéricos)
+          _refs_raw    — todo el texto tras "REFERENCES:" dividido por ";"
+          references   — IDs normalizados vía _parse_refs() compartida
+        """
+        def to_int(v: str) -> int:
+            try:
+                return int(v.strip())
+            except: return 0
+
+        lines = [ln for ln in chunk_a.splitlines() if ln.strip()]
+        if not lines:
+            return None
+
+        # ── Authors ──────────────────────────────────────────────────────────
+        full_names_m = re.search(
+            r'^AUTHOR FULL NAMES:\s*(.+)$', chunk_a, re.MULTILINE
+        )
+        if full_names_m:
+            raw_names = full_names_m.group(1)
+            authors = [
+                re.sub(r'\s*\(\d+\)', '', n).strip()
+                for n in raw_names.split(';')
+                if n.strip() and re.search(r'[A-Za-z]', n)
+            ]
+        else:
+            # Fallback: primera línea con los nombres cortos
+            authors = [
+                a.strip() for a in lines[0].split(',')
+                if a.strip() and re.search(r'[A-Za-z]', a)
+            ]
+
+        # ── Título ───────────────────────────────────────────────────────────
+        # El título es la línea que precede inmediatamente a la línea "(año) …"
+        title = ""
+        for idx, line in enumerate(lines):
+            if re.match(r'^\(\d{4}\)', line.strip()):
+                title = lines[idx - 1].strip() if idx > 0 else ""
+                break
+
+        # ── Año y veces citado ────────────────────────────────────────────────
+        year, times_cited = 0, 0
+        for line in lines:
+            m = re.match(r'^\((\d{4})\)', line.strip())
+            if m:
+                year = to_int(m.group(1))
+                cm   = re.search(r'Cited\s+(\d+)\s+times', line, re.I)
+                times_cited = to_int(cm.group(1)) if cm else 0
+                break
+
+        # ── DOI ───────────────────────────────────────────────────────────────
+        doi_m = re.search(r'^DOI:\s*(10\.\S+)', chunk_a, re.MULTILINE | re.I)
+        doi   = doi_m.group(1).rstrip('.,)') if doi_m else ""
+
+        # ── Referencias ───────────────────────────────────────────────────────
+        # Captura todo el texto entre "REFERENCES:" y la siguiente sección
+        # de metadatos (DOCUMENT TYPE / PUBLICATION STAGE / OPEN ACCESS).
+        refs_raw: list = []
+        refs_ids: list = []
+        if chunk_b:
+            refs_m = re.search(
+                r'^REFERENCES:\s*(.*?)(?=\n(?:DOCUMENT TYPE|PUBLICATION STAGE|OPEN ACCESS):|\Z)',
+                chunk_b,
+                re.DOTALL | re.MULTILINE,
+            )
+            if refs_m:
+                refs_block = refs_m.group(1)
+                # Dividir por ";" y limpiar entradas vacías
+                refs_raw = [r.strip() for r in refs_block.split(';') if r.strip()]
+                # ✅ Reutiliza la misma función estática _parse_refs que WoS
+                refs_ids = self._parse_refs(refs_raw)
+
+        # ── ID del paper ──────────────────────────────────────────────────────
+        pid = doi or _generate_canonical_id(
+            authors[0] if authors else "", year, title
+        )
+
+        return {
+            "id":          pid,
+            "label":       title,
+            "title":       title,
+            "authors":     authors,
+            "year":        year,
+            "doi":         doi or None,
+            "times_cited": times_cited,
+            "references":  refs_ids,
+            "_refs_raw":   refs_raw,   # strings crudos para ghost nodes / JW
+            "url":         None,
+            "source":      "scopus_txt",
+        }
+
     @staticmethod
     def _parse_refs(refs: list) -> list:
-        """
-        Extrae IDs normalizados de las referencias CR.
-        """
         ids: list = []
         seen: set = set()
         for ref in refs:
@@ -158,12 +345,15 @@ class WoSParser:
                 rid = m[1].rstrip(",. ").lower()
             else:
                 parts = [p.strip() for p in ref.split(",")]
-                
+
                 # PROTECCIÓN: Extraer autor en Web of Science
                 author_words = parts[0].split() if parts else []
                 a = author_words[0].lower() if author_words else "unk"
-                
-                y = parts[1].strip()[:4] if len(parts) > 1 else "0000"
+
+                if ym := re.search(r'\((\d{4})\)', ref):
+                    y = ym[1]
+                else:
+                    y = parts[1].strip()[:4] if len(parts) > 1 else "0000"
                 rid = f"{a}_{y}"
             if rid not in seen:
                 seen.add(rid)
@@ -745,29 +935,29 @@ class ReferenceNodeExtractor:
         }
 
     @staticmethod
-    def from_scopus_csv(self, ref_str: str) -> dict: # (Asegúrate de mantener el 'self' si está dentro de una clase)
-        ref_str = ref_str.strip()
-        doi_m   = re.search(r'10\.\d{4,}/\S+', ref_str)
-        doi = doi_m[0].rstrip(",. )").lower() if doi_m else None
-        year_m  = re.search(r'\((\d{4})\)', ref_str)
-        year = int(year_m[1]) if year_m else None
-        parts   = [p.strip() for p in ref_str.split(",")]
+    def from_scopus_csv(ref_str: str) -> dict: 
+            ref_str = ref_str.strip()
+            doi_m   = re.search(r'10\.\d{4,}/\S+', ref_str)
+            doi = doi_m[0].rstrip(",. )").lower() if doi_m else None
+            year_m  = re.search(r'\((\d{4})\)', ref_str)
+            year = int(year_m[1]) if year_m else None
+            parts   = [p.strip() for p in ref_str.split(",")]
 
-        # --- NUEVA PROTECCIÓN ---
-        author = parts[0] if parts and parts[0] else "Unknown"
-        author_words = author.split()
-        # Si author_words tiene algo, tomamos la primera palabra, si no, usamos "unknown"
-        first_author_word = author_words[0].lower() if author_words else "unknown"
+            # --- NUEVA PROTECCIÓN ---
+            author = parts[0] if parts and parts[0] else "Unknown"
+            author_words = author.split()
+            # Si author_words tiene algo, tomamos la primera palabra, si no, usamos "unknown"
+            first_author_word = author_words[0].lower() if author_words else "unknown"
 
-        node_id = doi or f"{first_author_word}_{year}"
-        # ------------------------
+            node_id = doi or f"{first_author_word}_{year}"
+            # ------------------------
 
-        return {
-            "id": node_id, "label": f"{author} ({year})".strip(),
-            "title": f"{author} ({year})".strip(), "authors": [author],
-            "year": year, "doi": doi, "times_cited": 0, "references": [],
-            "url": None, "source": "csv_reference", "_is_ghost": True,
-        }
+            return {
+                "id": node_id, "label": f"{author} ({year})".strip(),
+                "title": f"{author} ({year})".strip(), "authors": [author],
+                "year": year, "doi": doi, "times_cited": 0, "references": [],
+                "url": None, "source": "csv_reference", "_is_ghost": True,
+            }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -777,24 +967,24 @@ class ReferenceNodeExtractor:
 class ScienceTreeBuilder:
     PARSERS = {
         ".csv": ScopusCSVParser,
-        ".txt": WoSParser,
+        ".txt": TextRecordParser,
         ".bib": ScopusBibParser,
         ".ris": ScopusRISParser,
     }
 
     def __init__(self,
                  min_degree: int = 1,
-                 min_cocitations: int = 10,
+                 min_cocitations: int = 1,
                  include_ghost_nodes: bool = True,
                  exclude_self_citations: bool = True,
                  use_jaro_winkler: bool = True,
                  fast_sap: bool = True,
                  use_lcc: bool = True,
                  leaf_window: int = 5,
-                 top_trunk_limit: int = 20,
-                 top_root_limit: int = 10,
-                 top_leaf_limit: int = 40,
-                 max_nodes: int = 70):
+                 top_trunk_limit: int = 30,
+                 top_root_limit: int = 20,
+                 top_leaf_limit: int = 60,
+                 max_nodes: int = 90):
         """
         Parámetros:
           min_cocitations  : umbral co-citaciones para ghost nodes.
