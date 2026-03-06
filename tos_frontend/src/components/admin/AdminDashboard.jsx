@@ -58,7 +58,19 @@ const AdminDashboard = () => {
 
   const approveMutation = useMutation({
     mutationFn: (id) => adminAPI.reviewRequest(id, { status: 'approved' }),
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-requests'] });
+      const previous = queryClient.getQueryData(['admin-requests']);
+      queryClient.setQueryData(['admin-requests'], (old) => {
+        if (!old?.results) return old;
+        return { ...old, results: old.results.filter((r) => r.id !== id) };
+      });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      queryClient.setQueryData(['admin-requests'], context.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-requests'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },
@@ -66,7 +78,19 @@ const AdminDashboard = () => {
 
   const rejectMutation = useMutation({
     mutationFn: (id) => adminAPI.reviewRequest(id, { status: 'rejected' }),
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-requests'] });
+      const previous = queryClient.getQueryData(['admin-requests']);
+      queryClient.setQueryData(['admin-requests'], (old) => {
+        if (!old?.results) return old;
+        return { ...old, results: old.results.filter((r) => r.id !== id) };
+      });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      queryClient.setQueryData(['admin-requests'], context.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-requests'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },
@@ -143,6 +167,7 @@ const AdminDashboard = () => {
     }
   ];
 
+  // isLoading = true solo en el primer fetch, no en refetches tras mutaciones
   if (isLoadingStats || isLoadingRequests) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -250,12 +275,12 @@ const AdminDashboard = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#19c3e6]/10">
-               {filteredRequests.map((request, idx) => (
+               {filteredRequests.map((request) => (
                 <motion.tr
-                  key={idx}
+                  key={request.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1 + idx * 0.1 }}
+                  transition={{ delay: 0.1 }}
                   whileHover={{ backgroundColor: 'rgba(25, 195, 230, 0.05)' }}
                   className="group transition-colors"
                 >
@@ -312,7 +337,7 @@ const AdminDashboard = () => {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => approveMutation.mutate(request.id)}
-                        disabled={approveMutation.isLoading || request.status === 'approved'}
+                        disabled={approveMutation.isPending || request.status === 'approved'}
                         className="w-8 h-8 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all disabled:opacity-40"
                         title="Aprobar"
                       >
@@ -322,7 +347,7 @@ const AdminDashboard = () => {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => rejectMutation.mutate(request.id)}
-                        disabled={rejectMutation.isLoading || request.status === 'rejected'}
+                        disabled={rejectMutation.isPending || request.status === 'rejected'}
                         className="w-8 h-8 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all disabled:opacity-40"
                         title="Rechazar"
                       >

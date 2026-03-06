@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -18,24 +18,28 @@ const Dashboard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
 
-  // Consultar historial de árboles (paginado)
-  const { data: treesData, isLoading: treesLoading } = useQuery({
-    queryKey: ['trees-dashboard'],
-    queryFn: () =>
-      treeAPI
-        .history({
-          page: 1,
-          page_size: 10,
-        })
-        .then((res) => res.data),
+  // Ambas queries se lanzan EN PARALELO — useQueries garantiza que no esperan
+  // una a la otra, reduciendo el tiempo de carga al máximo entre las dos en vez
+  // de la suma de ambas.
+  const [treesResult, biblioResult] = useQueries({
+    queries: [
+      {
+        queryKey: ['trees-dashboard'],
+        queryFn: () => treeAPI.history({ page: 1, page_size: 10 }).then(res => res.data),
+      },
+      {
+        queryKey: ['bibliographies'],
+        queryFn: () => bibliographyAPI.list().then(res => res.data),
+      },
+    ],
   });
 
-  // Consultar bibliografías
-  const { data: bibliographies = [], isLoading: bibliographiesLoading } = useQuery({
-    queryKey: ['bibliographies'],
-    queryFn: () => bibliographyAPI.list().then(res => res.data),
-  });
+  const treesData            = treesResult.data;
+  const treesLoading         = treesResult.isLoading;
+  const bibliographies       = biblioResult.data ?? [];
+  const bibliographiesLoading = biblioResult.isLoading;
 
   const trees = treesData?.results || [];
   const recentTrees = trees.slice(0, 3);

@@ -818,21 +818,33 @@ const TreeDetail = () => {
 
                   {showSapInfo && (
                     <div
-                      className="absolute z-20 mt-2 w-64 text-[10px] px-3 py-2 rounded-lg border border-[#19c3e6]/30 text-[#f5f5f0]/80"
-                      style={{
-                        background: 'rgba(15, 21, 19, 0.96)',
-                        right: 0,
-                      }}
+                      className="absolute z-20 mt-2 w-72 text-[10px] px-3 py-2 rounded-lg border border-[#19c3e6]/30 text-[#f5f5f0]/80"
+                      style={{ background: 'rgba(15, 21, 19, 0.96)', right: 0 }}
                     >
                       <p className="font-semibold text-[#f5f5f0] mb-1">¿Qué es el SAP?</p>
-                      <p className="mb-1">
-                        SAP = <strong>Shoot Apical Point</strong> (Punto Apical del Brote).
+
+                      <p className="mb-2">
+                        Es una puntuación que mide la <strong className="text-[#19c3e6]">importancia estructural</strong> de
+                        un artículo dentro del árbol, y se calcula de forma distinta según su rol:
                       </p>
-                      <p className="mb-1">
-                        Es una puntuación que indica qué tan conectado y relevante es un artículo dentro de la red de conocimiento del campo estudiado.
-                      </p>
-                      <p>
-                        Un SAP alto significa que ese artículo es citado por muchos otros y conecta distintas partes del árbol.
+
+                      <div className="space-y-1 mb-2">
+                        <p>
+                          🌱 <strong className="text-[#f5f5f0]">Raíces</strong> — SAP = número de artículos que las citan
+                          <span className="text-[#f5f5f0]/50"> (grado de entrada)</span>
+                        </p>
+                        <p>
+                          🪵 <strong className="text-[#f5f5f0]">Troncos</strong> — SAP = citas recibidas × citas emitidas
+                          <span className="text-[#f5f5f0]/50"> (rol de puente)</span>
+                        </p>
+                        <p>
+                          🍃 <strong className="text-[#f5f5f0]">Hojas</strong> — SAP = número de artículos que citan
+                          <span className="text-[#f5f5f0]/50"> (grado de salida)</span>
+                        </p>
+                      </div>
+
+                      <p className="text-[#f5f5f0]/50 border-t border-[#19c3e6]/20 pt-1 mt-1">
+                        Un SAP alto indica que el artículo es clave en su posición del árbol.
                       </p>
                     </div>
                   )}

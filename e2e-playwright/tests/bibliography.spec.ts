@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'path';
 
 const validEmail = 'serujio57@gmail.com';
-const validPass = 'SERGIO1003';
+const validPass = 'Sergio1003@';
 
 test.describe('Bibliografía', () => {
   test.beforeEach(async ({ page }) => {

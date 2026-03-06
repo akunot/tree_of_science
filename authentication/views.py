@@ -13,6 +13,10 @@ from django.utils import timezone
 from django.db import transaction
 from django.db.models import Count
 from django.db.models import Q
+import subprocess
+from datetime import datetime
+from pathlib import Path
+import sys
 
 from .serializers import (
     UserRegistrationSerializer, 
@@ -81,7 +85,7 @@ def send_verification_email(user, request):
 
 def send_invitation_email(invitation, request):
     """Envía email de invitación"""
-    registration_url = f"http://localhost:3000/register?token={invitation.token}"
+    registration_url = f"http://localhost:5173/register?token={invitation.token}"
     
     subject = 'Invitación para unirse a Tree of Science'
     message = f'''
@@ -168,6 +172,10 @@ def register(request):
                     user.user_state = 'ACTIVE'
                     if hasattr(user, 'is_verified'):
                         user.is_verified = True
+
+                    if getattr(invitation, 'role', None) == 'administrator':
+                        user.is_staff = True
+                        user.is_superuser = False  # admin de plataforma, no superusuario Django
                 else:
                     # Registro normal (solo para administradores)
                     if not request.user.is_authenticated or not request.user.is_admin:
@@ -627,6 +635,7 @@ def send_invitation(request):
                 # Crear invitación
                 invitation = Invitation.objects.create(
                     inviter=request.user,
+                    role=request.data.get('role', 'user'),  # ✅ guardar el rol
                     **serializer.validated_data
                 )
 
@@ -921,12 +930,16 @@ def admin_suspend_user(request, user_id):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def request_admin_access(request):
-    serializer = AdminRequestSerializer(data=request.data)
+    from .serializers import AdminRequestCreateSerializer
+    serializer = AdminRequestCreateSerializer(data=request.data)
     
     if serializer.is_valid():
         try:
-            # Guardar la solicitud
-            admin_request = serializer.save()
+            # AdminRequestCreateSerializer es un Serializer simple (sin create()),
+            # por eso creamos el objeto directamente desde validated_data.
+            admin_request = AdminRequest.objects.create(
+                **serializer.validated_data
+            )
             
             return Response({
                 'success': True,
@@ -1300,36 +1313,66 @@ def system_settings(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def db_backup(request):
-    """
-    Crea un backup simple de la base de datos.
-    Para desarrollo: copia el archivo db.sqlite3 a media/backups/.
-    """
     if not request.user.is_staff and not getattr(request.user, "is_admin", False):
         return Response(
             {"error": "No tiene permisos para ejecutar esta acción"},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    from django.conf import settings
-    from datetime import datetime
-    import shutil
-
-    db_path = settings.DATABASES['default']['NAME']
+    db_settings = settings.DATABASES['default']
     backup_dir = settings.MEDIA_ROOT / 'backups'
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_path = backup_dir / f'db_backup_{timestamp}.sqlite3'
+    backup_filename = f'db_backup_{timestamp}.dump'
+
+    pg_args = (
+        f"-h {db_settings.get('HOST', 'localhost')} "
+        f"-p {db_settings.get('PORT', 5432)} "
+        f"-U {db_settings.get('USER', '')} "
+        f"-F c "
+    )
+    pg_env = f"PGPASSWORD='{db_settings.get('PASSWORD', '')}'"
+    db_name = db_settings.get('NAME', '')
 
     try:
-        shutil.copy(str(db_path), str(backup_path))
+        if sys.platform == 'win32':
+            # Desarrollo: PostgreSQL corre en WSL/Debian
+            # Convertir ruta Windows → ruta WSL
+            # Ej: C:\Users\...\media\backups → /mnt/c/Users/.../media/backups
+            drive = backup_dir.drive.rstrip(':').lower()
+            rest = backup_dir.as_posix().split(':', 1)[-1]
+            wsl_backup_dir = f"/mnt/{drive}{rest}"
+            wsl_backup_path = f"{wsl_backup_dir}/{backup_filename}"
+
+            cmd = [
+                'wsl', 'bash', '-c',
+                f"mkdir -p {wsl_backup_dir} && "
+                f"{pg_env} pg_dump {pg_args} -f {wsl_backup_path} {db_name}"
+            ]
+        else:
+            # Producción: Linux nativo, pg_dump disponible directamente
+            backup_path = str(backup_dir / backup_filename)
+            cmd = [
+                'bash', '-c',
+                f"{pg_env} pg_dump {pg_args} -f {backup_path} {db_name}"
+            ]
+
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
         return Response(
-            {"success": True, "message": f"Backup creado en {backup_path.name}"},
+            {"success": True, "message": f"Backup creado en {backup_filename}"},
             status=status.HTTP_200_OK,
         )
-    except Exception as e:
+
+    except subprocess.CalledProcessError as e:
         return Response(
-            {"error": f"Error al crear backup: {str(e)}"},
+            {"error": f"Error al crear backup: {e.stderr}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except FileNotFoundError as e:
+        return Response(
+            {"error": f"No se encontró el comando necesario: {e}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
@@ -1337,10 +1380,6 @@ def db_backup(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def db_optimize(request):
-    """
-    Optimiza la base de datos SQLite ejecutando VACUUM y ANALYZE.
-    (Seguro en desarrollo; en producción habría que revisar)
-    """
     if not request.user.is_staff and not getattr(request.user, "is_admin", False):
         return Response(
             {"error": "No tiene permisos para ejecutar esta acción"},
@@ -1350,9 +1389,17 @@ def db_optimize(request):
     from django.db import connection
 
     try:
+        # VACUUM no puede ejecutarse dentro de una transacción en PostgreSQL
+        # Se requiere autocommit=True en la conexión directa
+        conn = connection.connection
+        old_isolation = conn.isolation_level
+        conn.set_isolation_level(0)  # ISOLATION_LEVEL_AUTOCOMMIT
+
         with connection.cursor() as cursor:
-            cursor.execute('VACUUM;')
-            cursor.execute('ANALYZE;')
+            cursor.execute('VACUUM ANALYZE;')  # En PostgreSQL se pueden combinar
+
+        conn.set_isolation_level(old_isolation)
+
         return Response(
             {"success": True, "message": "Base de datos optimizada correctamente"},
             status=status.HTTP_200_OK,
@@ -1367,30 +1414,25 @@ def db_optimize(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def db_clean_expired_invitations(request):
-    """
-    Elimina invitaciones expiradas (usando método is_valid() del modelo Invitation).
-    """
     if not request.user.is_staff and not getattr(request.user, "is_admin", False):
         return Response(
             {"error": "No tiene permisos para ejecutar esta acción"},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    import datetime
     from django.utils import timezone
 
     try:
         now = timezone.now()
-        expired = Invitation.objects.all()
-        deleted = 0
 
-        for inv in expired:
-            if not inv.is_valid():
-                inv.delete()
-                deleted += 1
+        # Un solo DELETE en la DB en lugar de un loop en Python
+        deleted_count, _ = Invitation.objects.filter(
+            state='PENDING',
+            expires_at__lt=now
+        ).delete()
 
         return Response(
-            {"success": True, "message": f"Invitaciones expiradas eliminadas: {deleted}"},
+            {"success": True, "message": f"Invitaciones expiradas eliminadas: {deleted_count}"},
             status=status.HTTP_200_OK,
         )
     except Exception as e:

@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
 
 // ── Credenciales de prueba ──────────────────────────────────
 const EMAIL = "serujio57@gmail.com";
-const PASS  = "SERGIO1003";
+const PASS  = "Sergio1003@";
 
 // ── Helper: login rápido ────────────────────────────────────
 async function login(page: any) {

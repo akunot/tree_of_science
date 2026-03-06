@@ -159,11 +159,11 @@ class InvitationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Invitation
-        fields = ('id', 'token', 'email', 'first_name', 'last_name', 
-                 'message', 'state', 'state_display', 'inviter_name', 'created_at', 
+        fields = ('id', 'token', 'email', 'first_name', 'last_name',
+                 'message', 'role', 'state', 'state_display', 'inviter_name', 'created_at',
                  'expires_at', 'is_expired', 'days_remaining', 'is_used', 'used_by',
                  'organization')
-        read_only_fields = ('id', 'token', 'state', 'state_display', 'inviter_name', 
+        read_only_fields = ('id', 'token', 'state', 'state_display', 'inviter_name',
                            'created_at', 'expires_at', 'is_expired', 'days_remaining', 'is_used', 'used_by')
     
     def get_is_expired(self, obj):
@@ -329,7 +329,7 @@ class AdminRequestCreateSerializer(serializers.Serializer):
 
     def validate_justification(self, value):
         """Validar que la justificación tenga suficiente contenido"""
-        if len(value.strip()) < 50:
+        if len(value.strip()) < 25:
             raise serializers.ValidationError(
                 "La justificación debe tener al menos 50 caracteres para explicar adecuadamente su solicitud."
             )

@@ -34,7 +34,7 @@ class User(AbstractUser):
     )
     
     # Verificación
-    is_verified = models.BooleanField(default=True) # Cambiar a false mas adelante
+    is_verified = models.BooleanField(default=False) # Cambiar a false mas adelante
     verification_token = models.CharField(max_length=100, blank=True, null=True)
     verification_date = models.DateTimeField(blank=True, null=True)
     
@@ -54,7 +54,7 @@ class User(AbstractUser):
         blank=True,
         related_name='invited_users'
     )
-    invitation_accepted = models.BooleanField(default=True) # Cambiar a false mas adelante
+    invitation_accepted = models.BooleanField(default=False) # Cambiar a false mas adelante
     
     # Campos de auditoría
     last_login_ip = models.GenericIPAddressField(blank=True, null=True)
@@ -88,9 +88,7 @@ class User(AbstractUser):
     
     def is_locked(self):
         """Verifica si la cuenta está bloqueada temporalmente"""
-        if self.locked_until:
-            return timezone.now() < self.locked_until
-        return False
+        return timezone.now() < self.locked_until if self.locked_until else False
     
     def increment_login_attempts(self):
         """Incrementa los intentos de login fallidos"""
@@ -174,7 +172,18 @@ class Invitation(models.Model):
     
     # Mensaje opcional
     message = models.TextField(blank=True, null=True)
-    
+
+    # Rol que tendrá el usuario al registrarse
+    ROLE_CHOICES = (
+        ('user', 'Usuario'),
+        ('administrator', 'Administrador'),
+    )
+    role = models.CharField(
+        max_length=15,
+        choices=ROLE_CHOICES,
+        default='user'
+    )
+
     # Estado de la invitación
     state = models.CharField(
         max_length=10, 
@@ -224,7 +233,7 @@ class Invitation(models.Model):
         """Acepta la invitación (crear usuario)"""
         if not self.is_valid():
             return None
-            
+
         # Crear usuario si no existe
         try:
             existing_user = User.objects.get(email=self.email)
@@ -238,7 +247,7 @@ class Invitation(models.Model):
             while User.objects.filter(username=username).exists():
                 username = f"{base_username}_{counter}"
                 counter += 1
-            
+
             user = User.objects.create_user(
                 username=username,
                 email=self.email,
@@ -247,16 +256,13 @@ class Invitation(models.Model):
                 is_active=False,  # Requiere verificación
                 invited_by=self.inviter
             )
-        
-        # Vincular usuario con la invitación
-        success = user.accept_invitation(str(self.token))
-        
-        if success:
+
+        if success := user.accept_invitation(str(self.token)):
             self.state = 'ACCEPTED'
             self.accepted_at = timezone.now()
             self.save()
             return user
-        
+
         return None
     
     def __str__(self):

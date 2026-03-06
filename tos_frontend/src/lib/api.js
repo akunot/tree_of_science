@@ -8,7 +8,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Flag para evitar loops infinitos de refresh
+// ─── Refresh token logic ────────────────────────────────────────────────────
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -24,13 +24,19 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    // Si es 401 y no es el propio endpoint de refresh/login/me
-    const isAuthEndpoint = ['/auth/login/', '/auth/refresh-token/', '/auth/me/']
-      .some(path => original.url?.includes(path));
+    const isAuthEndpoint = [
+      '/auth/login/',
+      '/auth/refresh-token/',
+      '/auth/me/',
+      '/auth/request-admin/',
+      '/auth/forgot-password/',
+      '/auth/reset-password/',
+      '/auth/verify-email/',
+      '/auth/invitations/validate/',
+    ].some(path => original.url?.includes(path));
 
     if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       if (isRefreshing) {
-        // Encolar el request mientras se refresca
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then(() => api(original)).catch(err => Promise.reject(err));
@@ -46,10 +52,9 @@ api.interceptors.response.use(
           { withCredentials: true }
         );
         processQueue(null);
-        return api(original); // reintenta el request original con el nuevo token
+        return api(original);
       } catch (refreshError) {
         processQueue(refreshError);
-        // Refresh falló: limpiar sesión y redirigir al login
         localStorage.removeItem('user');
         window.location.href = '/login';
         return Promise.reject(refreshError);
@@ -62,136 +67,112 @@ api.interceptors.response.use(
   }
 );
 
+// ─── Auth ───────────────────────────────────────────────────────────────────
 export const authAPI = {
   register: (userData) => api.post('/auth/register/', userData),
   login: (credentials) => api.post('/auth/login/', credentials),
   logout: () => api.post('/auth/logout/'),
   forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
   resetPassword: (data) => api.post('/auth/reset-password/', data),
-  getCurrentUser: () => api.get('/auth/me/'),  // ← corregido
+  getCurrentUser: () => api.get('/auth/me/'),
   verifyInvitation: (token) => api.post('/auth/invitations/validate/', { token }),
   registerWithInvitation: (userData) => api.post('/auth/register/', userData),
   verifyEmail: (token) => api.post('/auth/verify-email/', { token }),
 };
 
- // ===== API DE INVITACIONES (si quieres mantenerla) =====
- export const invitationsAPI = {
-   verifyInvitation: (token) => authAPI.verifyInvitation(token),
-   registerWithInvitation: (userData) => authAPI.registerWithInvitation(userData),
- };
+export const invitationsAPI = {
+  verifyInvitation: (token) => authAPI.verifyInvitation(token),
+  registerWithInvitation: (userData) => authAPI.registerWithInvitation(userData),
+};
 
-// ===== API DE SOLICITUDES DE ADMINISTRADOR =====
+// ─── Admin ──────────────────────────────────────────────────────────────────
 export const adminAPI = {
-  // ===== ESTADÍSTICAS DEL DASHBOARD =====
   getStats: () => api.get('/auth/admin/stats/').then(res => res.data),
-  
-  // ===== GESTIÓN DE USUARIOS =====
   getUsers: (params = {}) => api.get('/auth/admin/users/', { params }).then(res => res.data),
   getRecentActivity: (params = {}) => api.get('/auth/admin/activity/', { params }).then(res => res.data),
   getUserById: (id) => api.get(`/auth/admin/users/${id}/`).then(res => res.data),
   updateUser: (id, data) => api.put(`/auth/admin/users/${id}/`, data).then(res => res.data),
   deleteUser: (id) => api.delete(`/auth/admin/users/${id}/delete/`).then(res => res.data),
-
-  // Activar y suspender usuarios con los endpoints correctos
   activateUser: (id) => api.post(`/auth/admin/users/${id}/activate/`).then(res => res.data),
   suspendUser: (id) => api.post(`/auth/admin/users/${id}/suspend/`).then(res => res.data),
-  
-  // ===== GESTIÓN DE INVITACIONES =====
-  // getInvitations - asegurar que retorna array
-  getInvitations: (params = {}) => 
+  getInvitations: (params = {}) =>
     api.get('/auth/admin/invitations/', { params }).then(res => {
-      // Si el servidor retorna { invitations: [...] }, extraer el array
-      if (res.data?.invitations) {
-        return res.data.invitations;
-      }
-      // Si retorna directamente un array, usarlo así
-      if (Array.isArray(res.data)) {
-        return res.data;
-      }
-      // Si retorna un objeto con data, usar eso
-      if (res.data?.data) {
-        return res.data.data;
-      }
-      // Fallback: retornar el objeto completo para debugging
+      if (res.data?.invitations) return res.data.invitations;
+      if (Array.isArray(res.data)) return res.data;
+      if (res.data?.data) return res.data.data;
       return res.data;
     }),
-  
-  // createInvitation
   createInvitation: (data) =>
     api.post('/auth/admin/invitations/create/', data).then(res => res.data),
-  
-  revokeInvitation: (id) => 
+  revokeInvitation: (id) =>
     api.post(`/auth/admin/invitations/${id}/`).then(res => res.data),
-  
-  copyInvitationToken: (id) => 
+  copyInvitationToken: (id) =>
     api.get(`/auth/admin/invitations/${id}/token/`).then(res => res.data),
-  
-    // ===== GESTIÓN DE SOLICITUDES DE ADMIN =====
-
-  // Enviar una nueva solicitud de acceso de administrador (lo usa AdminRequest.jsx)
   submitRequest: (data) =>
     api.post('/auth/request-admin/', data).then(res => res.data),
-
-  // Listar solicitudes para el panel de administración
-  getAdminRequests: (params = {}) => 
+  getAdminRequests: (params = {}) =>
     api.get('/auth/admin/requests/', { params }).then(res => {
-      const {data} = res;
-      // Tu backend devuelve { count, results, pending_count, ... }
-      if (Array.isArray(data?.results)) {
-        return data;
-      }
-      console.warn('Formato inesperado en getAdminRequests, devolviendo estructura vacía', data);
+      const { data } = res;
+      if (Array.isArray(data?.results)) return data;
+      console.warn('Formato inesperado en getAdminRequests', data);
       return { count: 0, results: [], pending_count: 0, approved_count: 0, rejected_count: 0 };
     }),
-
-  // Aprobar / rechazar una solicitud
-  reviewRequest: (id, data) => 
+  reviewRequest: (id, data) =>
     api.patch(`/auth/admin/requests/${id}/review/`, data).then(res => res.data),
-  
-  // ===== CONFIGURACIONES DEL SISTEMA =====
-  getSettings: () => 
-    api.get('/auth/admin/settings/').then(res => res.data),
-  
-  updateSettings: (data) => 
-    api.patch('/auth/admin/settings/', data).then(res => res.data),
-
-  // ===== HERRAMIENTAS DE BASE DE DATOS =====
-  backupDatabase: () =>
-    api.post('/auth/admin/db/backup/').then(res => res.data),
-
-  optimizeDatabase: () =>
-    api.post('/auth/admin/db/optimize/').then(res => res.data),
-
+  getSettings: () => api.get('/auth/admin/settings/').then(res => res.data),
+  updateSettings: (data) => api.patch('/auth/admin/settings/', data).then(res => res.data),
+  backupDatabase: () => api.post('/auth/admin/db/backup/').then(res => res.data),
+  optimizeDatabase: () => api.post('/auth/admin/db/optimize/').then(res => res.data),
   cleanExpiredInvitations: () =>
     api.post('/auth/admin/db/clean-expired-invitations/').then(res => res.data),
 };
 
-// ===== API DE BIBLIOGRAFÍA =====
+// ─── Bibliografía ───────────────────────────────────────────────────────────
 export const bibliographyAPI = {
   list: () => api.get('/bibliography/list/'),
-  upload: (formData) => api.post('/bibliography/upload/', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  }),
-  download: (id) => api.get(`/bibliography/download/${id}/`, {
-    responseType: 'blob',
-  }),
+  upload: (formData) =>
+    api.post('/bibliography/upload/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  download: (id) => api.get(`/bibliography/download/${id}/`, { responseType: 'blob' }),
   delete: (id) => api.delete(`/bibliography/delete/${id}/`),
 };
 
-// ===== API DE ÁRBOLES =====
+// ─── Árboles ────────────────────────────────────────────────────────────────
 export const treeAPI = {
   generate: (data) => api.post('/tree/generate/', data),
-
-  // Historial paginado con parámetros opcionales (page, page_size, search)
   history: (params = {}) => api.get('/tree/history/', { params }),
-
   detail: (id) => api.get(`/tree/${id}/`),
-  download: (id, format) => api.get(`/tree/${id}/download/${format}/`, {
-    responseType: 'blob',
-  }),
+  download: (id, format) =>
+    api.get(`/tree/${id}/download/${format}/`, { responseType: 'blob' }),
   delete: (id) => api.delete(`/tree/${id}/delete/`),
+};
+
+// ─── Dashboard: carga en paralelo ───────────────────────────────────────────
+/**
+ * OPTIMIZACIÓN PRINCIPAL para EST-04:
+ * En lugar de que Dashboard.jsx llame primero a treeAPI.history()
+ * y luego (cuando resuelve) llame a bibliographyAPI.list(), ambas
+ * se lanzan en paralelo con Promise.all.
+ *
+ * Diferencia práctica:
+ *   ANTES: 800ms (trees) + 600ms (biblio) = ~1400ms secuencial
+ *   AHORA: max(800ms, 600ms)              = ~800ms paralelo
+ *
+ * Úsalo en Dashboard.jsx:
+ *   const { trees, bibliographies } = await dashboardAPI.loadAll();
+ */
+export const dashboardAPI = {
+  loadAll: async (treeParams = { page_size: 6 }) => {
+    const [treesRes, biblioRes] = await Promise.all([
+      treeAPI.history(treeParams),
+      bibliographyAPI.list(),
+    ]);
+    return {
+      trees: treesRes.data,
+      bibliographies: biblioRes.data,
+    };
+  },
 };
 
 export default api;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { authAPI } from '../lib/api';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -7,10 +7,14 @@ const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
+  const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
+  const hasFired = useRef(false); // ← evita doble ejecución en StrictMode
 
   useEffect(() => {
+    if (hasFired.current) return; // segunda ejecución de StrictMode: ignorar
+    hasFired.current = true;
+
     const token = searchParams.get('token');
     if (!token) {
       setStatus('error');
@@ -20,22 +24,20 @@ const VerifyEmail = () => {
 
     authAPI.verifyEmail(token)
       .then((res) => {
-        // El backend ya dejó las cookies y devolvió user
         if (res.data?.user) {
-          login(res.data);          // guarda user en localStorage
-          navigate('/dashboard');   // o '/admin' si quieres lógica de rol
+          login(res.data);
+          navigate('/dashboard');
         } else {
           setStatus('success');
           setMessage('Email verificado correctamente. Ahora puede iniciar sesión.');
         }
       })
       .catch((error) => {
-        console.error('Error verificando email', error);
         const msg = error.response?.data?.error || 'Token inválido o expirado';
         setStatus('error');
         setMessage(msg);
       });
-  }, [searchParams, navigate]);
+  }, []); // ← sin dependencias: solo debe correr al montar
 
   return (
     <div>

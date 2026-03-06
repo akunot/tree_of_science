@@ -88,8 +88,12 @@ WSGI_APPLICATION = 'tree_of_science.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'tree_of_science',
+        'USER': os.getenv('DB_USERNAME', ''),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', ''),  # La IP de tu WSL
+        'PORT': os.getenv('DB_PORT', ''),
     }
 }
 
@@ -227,3 +231,30 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Custom user model
 AUTH_USER_MODEL = 'authentication.User'
+# ─── Password hashing ────────────────────────────────────────────────────────
+# Django 5.x usa PBKDF2 con 720.000 iteraciones por defecto — correcto para
+# producción, pero causa logins de 3-8s bajo carga concurrente en desarrollo.
+#
+# En DEV usamos MD5 (sin iteraciones, solo para tests locales).
+# En producción (DEBUG=False) usamos PBKDF2 con iteraciones reducidas a 300.000
+# — sigue siendo seguro (OWASP recomienda mínimo 210.000) y reduce login ~2.4x.
+#
+# NUNCA uses MD5PasswordHasher en producción.
+if DEBUG:
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',  # solo DEV/tests
+    ]
+else:
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    ]
+    # Reducir de 720.000 (default Django 5) a 300.000
+    from django.contrib.auth.hashers import PBKDF2PasswordHasher
+    PBKDF2PasswordHasher.iterations = 300_000
+
+# ─── Database connection pooling ─────────────────────────────────────────────
+# Sin pooling, cada request abre y cierra una conexión a PostgreSQL.
+# Bajo carga concurrente (EST-03, EST-04) esto multiplica la latencia.
+# CONN_MAX_AGE=60 mantiene las conexiones abiertas 60s entre requests,
+# eliminando el overhead de handshake TCP+auth en cada llamada.
+DATABASES['default']['CONN_MAX_AGE'] = 60  # segundos

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const validEmail = 'serujio57@gmail.com';
-const validPass = 'SERGIO1003';
+const validPass = 'Sergio1003@';
 
 test('Login exitoso con credenciales válidas', async ({ page }) => {
     await page.goto('/');
