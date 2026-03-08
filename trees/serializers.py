@@ -68,7 +68,22 @@ class TreeCreateSerializer(serializers.ModelSerializer):
 
     def _build_graph_from_file(self, archivo):
         try:
-            return ScienceTreeBuilder().build_from_file(archivo)
+            # Parámetros que mantienen la precisión del algoritmo
+            # Solo optimizamos lo que no afecta la calidad del árbol
+            return ScienceTreeBuilder(
+                min_degree=1,
+                min_cocitations=2,
+                include_ghost_nodes=True,  # ✅ Mantener ghost nodes para completitud
+                exclude_self_citations=True,
+                use_jaro_winkler=True,   # ✅ Mantener deduplicación para evitar duplicados
+                fast_sap=True,           # ✅ O(N) - rápido sin perder precisión
+                use_lcc=True,
+                leaf_window=5,
+                top_trunk_limit=30,
+                top_root_limit=20,
+                top_leaf_limit=60,
+                max_nodes=90,            # Mantener nodos completos
+            ).build_from_file(archivo)
         except ValueError as e:
             raise ValidationError(str(e)) from e
         except Exception as exc:

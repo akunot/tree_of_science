@@ -688,6 +688,22 @@ const Register = () => {
           )}
         </motion.div>
 
+        {/* Register Link */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="mt-8 text-center text-sm text-[#f5f5f0]/60"
+        >
+          ¿No tiene un token de invitación?{" "}
+          <Link 
+            to="/admin-request"
+            className="text-[#19c3e6] hover:text-[#19c3e6]/80 font-medium transition-colors"
+          >
+            Solicite Acceso Aqui
+          </Link>
+        </motion.div>
+
         {/* Footer */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -701,6 +717,8 @@ const Register = () => {
       </motion.div>
 
       {/* Footer Links */}
+
+      
       <motion.footer
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
