@@ -105,6 +105,7 @@ const TreeHistory = () => {
         })
         .then((res) => res.data),
     keepPreviousData: true,
+    staleTime: 2 * 60 * 1000, // 2 minutos
   });
 
   const trees      = data?.results || [];

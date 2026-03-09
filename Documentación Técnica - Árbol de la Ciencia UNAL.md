@@ -1,7 +1,7 @@
 # Documentación Técnica — Árbol de la Ciencia UNAL
 
-**Versión:** 1.0  
-**Fecha:** Febrero 2026  
+**Versión:** 2.0  
+**Fecha:** Marzo 2026  
 **Desarrollado para:** Universidad Nacional de Colombia
 
 ---
@@ -41,7 +41,7 @@ El sistema usa una arquitectura **SPA (Single Page Application)** en el frontend
 
 | Tecnología | Descripción |
 |-----------|-------------|
-| Django 5.2.6 | Framework principal |
+| Django 5.2.8 | Framework principal |
 | Django REST Framework | API REST |
 | djangorestframework-simplejwt | Autenticación JWT |
 | django-cors-headers | Configuración de CORS |

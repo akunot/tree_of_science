@@ -1,20 +1,25 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 
-// Componentes de páginas
-import LandPage from '@/pages/LandingPage';
-import { LoginForm as Login } from '@/features/auth/components';
-import { RegisterForm as Register } from '@/features/auth/components';
-import { AdminRequest } from '@/features/auth/components';
-import { ForgotPassword } from '@/features/auth/components';
-import { ResetPassword } from '@/features/auth/components';
-import VerifyEmail from '@/components/VerifyEmail';
-import AccountSuspended from '@/components/AccountSuspended';
-import AboutUsPage from '@/components/AboutUs';
-import { Dashboard } from '@/features/trees/components';
-import { TreeGenerator } from '@/features/trees/components';
-import { TreeHistory } from '@/features/trees/components';
-import { TreeDetail } from '@/features/trees/components';
-import { BibliographyManager } from '@/features/bibliography/components';
+// Componentes de páginas - Lazy Loading para mejor rendimiento
+// Los componentes se cargan solo cuando se necesitan, no al inicio
+const LandPage = lazy(() => import('@/pages/LandingPage'));
+const Login = lazy(() => import('@/components/Login').then(module => ({ default: module.LoginForm || module.default })));
+const Register = lazy(() => import('@/components/Register'));
+const AdminRequest = lazy(() => import('@/components/AdminRequest'));
+const ForgotPassword = lazy(() => import('@/components/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/components/ResetPassword'));
+const VerifyEmail = lazy(() => import('@/components/VerifyEmail'));
+const AccountSuspended = lazy(() => import('@/components/AccountSuspended'));
+const AboutUsPage = lazy(() => import('@/components/AboutUs'));
+const Dashboard = lazy(() => import('@/components/Dashboard'));
+const TreeGenerator = lazy(() => import('@/components/TreeGenerator'));
+const TreeHistory = lazy(() => import('@/components/TreeHistory'));
+const TreeDetail = lazy(() => import('@/components/TreeDetail'));
+const BibliographyManager = lazy(() => import('@/components/BibliographyManager'));
+
+// Componentes base
 import Layout from '@/components/Layout';
 import AdminRoutes from '@/components/admin/AdminRoutes';
 
@@ -22,12 +27,24 @@ import AdminRoutes from '@/components/admin/AdminRoutes';
 import { ProtectedRoute, PublicRoute, AdminProtectedRoute } from './routeProtectors';
 
 /**
+ * Componente de carga para Suspense
+ * Muestra un spinner mientras el componente se carga
+ */
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen bg-[#0f1513]">
+    <Loader2 className="animate-spin h-8 w-8 text-[#19c3e6]" />
+  </div>
+);
+
+/**
  * Componente principal de rutas
  * Maneja todas las rutas de la aplicación con su protección correspondiente
+ * Usa lazy loading para cargar componentes solo cuando se necesitan
  */
 export function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<LoadingFallback />}>
+      <Routes>
       {/* ===== RUTAS PÚBLICAS ===== */}
       
       {/* Landing page */}
@@ -127,6 +144,7 @@ export function AppRoutes() {
       {/* ===== RUTA POR DEFECTO ===== */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 

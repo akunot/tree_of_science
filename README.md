@@ -123,7 +123,8 @@ El frontend estará disponible en **http://localhost:5173**.
 │   │   ├── lib/              # Utilidades y clientes API
 │   │   └── ...
 │   └── package.json
-├── documentacion_tecnica.md  # Documentación técnica completa
+├── Documentación Técnica - Árbol de la Ciencia UNAL.md  # Documentación técnica
+├── Documentacion Algortimo.md  # Documentación del algoritmo
 └── README.md
 ```
 
@@ -151,7 +152,65 @@ El frontend estará disponible en **http://localhost:5173**.
 | TanStack Query | Gestión de estado asíncrono |
 | Tailwind CSS | Estilos utility-first |
 | shadcn/ui | Componentes de UI |
+| lucide-react | Iconografía |
 | D3.js | Visualización del árbol |
+
+---
+
+## ⚡ Optimizaciones de Rendimiento
+
+El proyecto implementa varias técnicas para optimizar el rendimiento y la experiencia de usuario:
+
+| Optimización | Descripción | Beneficio |
+|-------------|-------------|----------|
+| **staleTime en Queries** | Datos considerados "frescos" por 2-5 minutos antes de refetch | Reduce llamadas innecesarias al servidor |
+| **Virtual Scrolling** | Renderizado solo de elementos visibles en listas grandes | Menor uso de memoria, mayor fluidez |
+| **Lazy Loading** | Componentes cargados solo cuando se necesitan | Tiempo inicial de carga más rápido |
+| **React Suspense** | Estado de carga durante descarga de componentes | Mejor UX durante navegación |
+| **Carga Paralela de Datos** | Dashboard carga árboles y bibliografías simultáneamente | Mitad del tiempo de carga |
+| **Factor de Escala Responsive** | El árbol SVG se ajusta automáticamente al tamaño de pantalla | Mejor visualización en móviles |
+
+---
+
+## 🔐 Seguridad
+
+El proyecto implementa múltiples capas de seguridad:
+
+### Backend (Django)
+
+| Medida | Descripción |
+|--------|-------------|
+| **JWT con Cookies** | Tokens de acceso y refresh con rotación automática |
+| **Blacklist de Tokens** | Tokens invalidate al hacer logout |
+| **Rate Limiting** | 100 req/min anon, 200 req/min usuarios, 5 req/min login |
+| **Validación de Contraseñas** | Mín 8 caracteres, no comunes, no solo numéricas |
+| **Password Hashing** | PBKDF2 con 300,000 iteraciones (producción) |
+| **CORS Configurado** | Solo origins permitidos |
+| **CSRF Protection** | Middleware activo |
+| **X-Frame-Options** | Prevenir clickjacking |
+| **Conexión Pooling** | Conexiones BD reutilizadas (60s) |
+
+### Configuración de Producción
+
+Para despliegue en producción, configura estas variables de entorno:
+
+```env
+# .env para producción
+DEBUG=False
+ALLOWED_HOSTS=tudominio.com,www.tudominio.com
+SECRET_KEY=tu-clave-secreta-muy-larga
+DB_HOST=localhost
+DB_PORT=5432
+```
+
+### Seguridad Adicional en Producción
+
+Cuando `DEBUG=False`, se activan automáticamente:
+- Redirect HTTPS forzado
+- Cookies seguras (Secure flags)
+- HSTS (HTTP Strict Transport Security)
+- Prevenir MIME type sniffing
+- X-Frame-Options: DENY
 
 ---
 
@@ -308,7 +367,7 @@ Para soporte técnico o consultas:
 
 ## 📄 Licencia
 
-Desarrollado para la **Universidad Nacional de Colombia** — 2025.
+Desarrollado para la **Universidad Nacional de Colombia** — 2026.
 
 ---
 

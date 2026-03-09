@@ -29,9 +29,14 @@ load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.getenv('DJANGO_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']  # Permitir acceso desde cualquier host
+# Configuración de producción segura
+if not DEBUG:
+    # En producción, restrict ALLOWED_HOSTS
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+else:
+    ALLOWED_HOSTS = ['*']  # Permitir acceso desde cualquier host en desarrollo
 
 
 # Application definition
@@ -62,6 +67,28 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Configuraciones de seguridad adicionales para producción
+if not DEBUG:
+    # HTTPS
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    # Prevenir MIME type sniffing
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    # No permitir que el navegador exponga el sitio en iframes
+    X_FRAME_OPTIONS = 'DENY'
+else:
+    # Configuración de desarrollo
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_CONTENT_TYPE_NOSNIFF = False
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 ROOT_URLCONF = 'tree_of_science.urls'
 
@@ -156,7 +183,18 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20
+    'PAGE_SIZE': 20,
+    # Rate limiting - protección contra ataques de fuerza bruta
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/minute',    # 100 requests por minuto para anonimos
+        'user': '200/minute',    # 200 requests por minuto para usuarios autenticados
+        'login': '5/minute',     # 5 intentos de login por minuto
+        'register': '3/minute',  # 3 registros por minuto
+    }
 }
 
 # Simple JWT configuration

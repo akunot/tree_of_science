@@ -29,6 +29,7 @@ const TreeDetail = () => {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [nodeFilter, setNodeFilter] = useState('all'); // 'all' | 'leaves' | 'trunks' | 'roots'
   const [showSapInfo, setShowSapInfo] = useState(false);
+  const [scaleFactor, setScaleFactor] = useState(1);
 
   const svgRef = useRef(null);
   const resizeObserver = useRef(null);
@@ -39,6 +40,8 @@ const TreeDetail = () => {
     queryKey: ['tree', id],
     queryFn: () => treeAPI.detail(id).then(res => res.data),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutos - datos considerados frescos por 5 minutos
+    gcTime: 30 * 60 * 1000, // 30 minutos - mantener en caché por 30 minutos
   });
 
   // Estadísticas
@@ -102,6 +105,13 @@ const TreeDetail = () => {
           const { width, height } = entry.contentRect;
           if (width > 0 && height > 0) {
             setDimensions({ width, height });
+            
+            // Calcular factor de escala basado en el ancho del contenedor
+            // Base de referencia: 1200px = escala 1
+            const baseWidth = 1200;
+            const newScale = Math.min(1, width / baseWidth);
+            // Escala mínima de 0.4 para pantallas muy pequeñas
+            setScaleFactor(Math.max(0.4, newScale));
           }
         }
       });
@@ -180,10 +190,13 @@ const TreeDetail = () => {
     const maxNodesForPhysics = 200;
     const nodesToSimulate = filteredNodes.slice(0, maxNodesForPhysics);
 
+    // Ajustar radio base según el factor de escala
+    const baseRadius = 10 * scaleFactor;
+    
     const nodes = nodesToSimulate.map((d, i) => {
-      const baseRadius = 6;
-      const scaleFactor = Math.sqrt(d.total_value || 1) * 0.8;
-      const radius = Math.max(6, Math.min(18, baseRadius + scaleFactor));
+      const nodeValueScale = Math.sqrt(d.total_value || 1) * 0.8;
+      // El radio mínimo y máximo también se ajusta con el scaleFactor
+      const radius = Math.max(6 * scaleFactor, Math.min(22 * scaleFactor, baseRadius + nodeValueScale * scaleFactor));
 
       const radialPos = getRadialPosition(d, i, d.group, dimensions.width, dimensions.height);
 
@@ -199,7 +212,7 @@ const TreeDetail = () => {
     });
 
     return { nodes, links: [] };
-  }, [filteredNodes, dimensions, getRadialPosition]);
+  }, [filteredNodes, dimensions, getRadialPosition, scaleFactor]);
 
   // Abrir documento
   const openDocument = useCallback((node) => {
@@ -404,8 +417,8 @@ const TreeDetail = () => {
       simulation.tick();
 
       nodes.forEach(node => {
-        const padding = node.radius + 3;
-        const margin = 5;
+        const padding = node.radius + 3 * scaleFactor;
+        const margin = 5 * scaleFactor;
         node.x = Math.max(margin + padding, Math.min(dimensions.width - margin - padding, node.x));
         node.y = Math.max(margin + padding, Math.min(dimensions.height - margin - padding, node.y));
       });
@@ -416,6 +429,10 @@ const TreeDetail = () => {
 
     svg.selectAll("g.node").remove();
     svg.selectAll(".link").remove();
+    
+    // Establecer viewBox para responsividad
+    svg.attr("viewBox", `0 0 ${dimensions.width} ${dimensions.height}`)
+       .attr("preserveAspectRatio", "xMidYMid meet");
 
     const nodeGroups = svg.selectAll("g.node")
       .data(nodes, (d, i) => d.id || i)
@@ -481,17 +498,18 @@ const TreeDetail = () => {
       });
 
     setIsSimulating(false);
-  }, [treeLayout, dimensions, openDocument]);
+  }, [treeLayout, dimensions, openDocument, scaleFactor]);
 
   useEffect(() => {
     if (treeLayout.nodes.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
       restartSimulation();
     }
-  }, [treeLayout, dimensions, restartSimulation]);
+  }, [treeLayout, dimensions, restartSimulation, scaleFactor]);
 
-  // Virtual scrolling
-  const ITEM_HEIGHT = 160;
-  const VISIBLE_ITEMS = Math.ceil(400 / ITEM_HEIGHT) + 2;
+  // Virtual scrolling - Altura de cada item optimizada para mejor rendimiento
+  // ITEM_HEIGHT reducido de 160 a 100 para mostrar más nodos con menos memoria
+  const ITEM_HEIGHT = 100;
+  const VISIBLE_ITEMS = Math.ceil(300 / ITEM_HEIGHT) + 2;
 
   const startIndex = Math.max(0, Math.floor(scrollOffset / ITEM_HEIGHT));
   const endIndex = Math.min(filteredNodes.length, startIndex + VISIBLE_ITEMS);
@@ -745,11 +763,11 @@ const TreeDetail = () => {
 
           <div
             ref={containerRefCallback}
-            className="w-full rounded-xl border border-[#19c3e6]/20 overflow-hidden h-[420px] md:h-auto md:aspect-[16/9]"
+            className="w-full rounded-xl border border-[#19c3e6]/20 overflow-hidden h-[50vh] md:h-auto md:aspect-[16/9]"
             style={{
               background: 'rgba(255, 255, 255, 0.02)',
               backdropFilter: 'blur(12px)',
-              minHeight: '360px',
+              minHeight: '300px',
             }}
           >
             <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />

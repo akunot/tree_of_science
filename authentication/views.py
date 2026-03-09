@@ -265,17 +265,28 @@ def login(request):
 
         # Verificar si la cuenta está bloqueada
         if user.is_locked():
+            # Calcular tiempo restante de bloqueo
+            locked_minutes = 0
+            if user.locked_until:
+                remaining = user.locked_until - timezone.now()
+                locked_minutes = max(0, int(remaining.total_seconds() / 60))
+
             log_user_activity(
                 user, 
                 'LOGIN_FAILED', 
-                f'Intento de login con cuenta bloqueada desde IP: {get_client_ip(request)}',
+                f'Intento de login con cuenta bloqueada. IP: {get_client_ip(request)}',
                 request
             )
-            return Response({
-                'error': 'Cuenta bloqueada temporalmente. Intente más tarde.'
-            }, status=status.HTTP_423_LOCKED)
+            return Response(
+                {
+                    'error': 'Cuenta bloqueada temporalmente por demasiados intentos fallidos.',
+                    'locked': True,
+                    'locked_minutes': locked_minutes,
+                    'attempts': user.login_attempts,
+                },
+                status=status.HTTP_423_LOCKED,
+            )
 
-         # 1. Verificar estado de la cuenta (prioritario: suspendida / pendiente, etc.)
         if user.user_state not in ['ACTIVE', 'INVITED']:
             log_user_activity(
                 user,
@@ -316,8 +327,7 @@ def login(request):
         # Login exitoso
         refresh = RefreshToken.for_user(user)
 
-        # Actualizar último login
-        user.last_login_ip = get_client_ip(request)
+        # Login exitoso - resetear intentos
         user.reset_login_attempts()
         user.save()
 
@@ -361,12 +371,44 @@ def login(request):
     with contextlib.suppress(User.DoesNotExist):
         user = User.objects.get(email=email)
         user.increment_login_attempts()
+
+        # Calcular intentos restantes antes del bloqueo
+        attempts_remaining = max(0, 5 - user.login_attempts)
+        warning_msg = None
+        if attempts_remaining <= 2 and attempts_remaining > 0:
+            warning_msg = f"Advertencia: Le quedan {attempts_remaining} intentos antes de bloquear su cuenta."
+        elif attempts_remaining == 0:
+            warning_msg = "Su cuenta ha sido bloqueada temporalmente por demasiados intentos fallidos."
+
         log_user_activity(
             user, 
             'LOGIN_FAILED', 
             f'Intento de login fallido. IP: {get_client_ip(request)}',
             request
         )
+
+        # Si hay bloqueo, responder con info de bloqueo
+        if user.is_locked():
+            locked_minutes = 0
+            if user.locked_until:
+                remaining = user.locked_until - timezone.now()
+                locked_minutes = max(0, int(remaining.total_seconds() / 60))
+            return Response({
+                'error': 'Cuenta bloqueada temporalmente por demasiados intentos fallidos.',
+                'locked': True,
+                'locked_minutes': locked_minutes,
+                'attempts': user.login_attempts
+            }, status=status.HTTP_423_LOCKED)
+
+        # Si no hay bloqueo pero hay warning, incluirlo
+        if warning_msg:
+            return Response({
+                'error': 'Credenciales inválidas.',
+                'warning': warning_msg,
+                'attempts': user.login_attempts,
+                'attempts_remaining': attempts_remaining
+            }, status=status.HTTP_400_BAD_REQUEST)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])

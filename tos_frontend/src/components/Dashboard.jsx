@@ -28,10 +28,12 @@ const Dashboard = () => {
       {
         queryKey: ['trees-dashboard'],
         queryFn: () => treeAPI.history({ page: 1, page_size: 10 }).then(res => res.data),
+        staleTime: 2 * 60 * 1000, // 2 minutos
       },
       {
         queryKey: ['bibliographies'],
         queryFn: () => bibliographyAPI.list().then(res => res.data),
+        staleTime: 2 * 60 * 1000, // 2 minutos
       },
     ],
   });

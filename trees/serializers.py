@@ -183,12 +183,23 @@ class TreeCreateSerializer(serializers.ModelSerializer):
             'year': node_data.get('year'),
             'authors': node_data.get('authors'),
             'times_cited': int(node_data.get('times_cited', 0)) if node_data.get('times_cited') else 0,
+            
+            # Ghost node flag - importante para verificar precisión del algoritmo
+            'is_ghost': node_data.get('_is_ghost', False),
         }
 
         # Agregar atributos adicionales simples que no sean estándar
         for key, value in node_data.items():
             if key not in node_dict and isinstance(value, (int, float, str, bool, type(None))):
                 node_dict[key] = value
+
+        # Asegurar que el flag is_ghost esté presente (copia defensiva)
+        if '_is_ghost' in node_data:
+            node_dict['is_ghost'] = node_data['_is_ghost']
+        elif 'is_ghost' in node_data:
+            node_dict['is_ghost'] = node_data['is_ghost']
+        else:
+            node_dict['is_ghost'] = False
 
         return node_dict, (dominant_group, total_val, sap_val)
 
@@ -222,6 +233,12 @@ class TreeCreateSerializer(serializers.ModelSerializer):
             "max_sap": stats['max_sap'],
             "min_sap": stats['min_sap'],
         }
+
+        # Contar ghost nodes para estadísticas
+        ghost_count = sum(bool(n.get('is_ghost', False))
+                      for n in nodes_with_attributes)
+        statistics['ghost_nodes'] = ghost_count
+        statistics['corpus_nodes'] = stats['total'] - ghost_count
 
         metadata = {
             "algorithm_version": "2.0",

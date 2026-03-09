@@ -57,7 +57,7 @@ class User(AbstractUser):
     invitation_accepted = models.BooleanField(default=False) # Cambiar a false mas adelante
     
     # Campos de auditoría
-    last_login_ip = models.GenericIPAddressField(blank=True, null=True)
+    # last_login_ip - eliminado por no ser necesario
     login_attempts = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(blank=True, null=True)
     
@@ -93,7 +93,7 @@ class User(AbstractUser):
     def increment_login_attempts(self):
         """Incrementa los intentos de login fallidos"""
         self.login_attempts += 1
-        if self.login_attempts >= 5:  # Bloquear después de 5 intentos
+        if self.login_attempts >= 6:  # Bloquear después de 6 intentos
             self.locked_until = timezone.now() + timezone.timedelta(minutes=30)
         self.save()
     
