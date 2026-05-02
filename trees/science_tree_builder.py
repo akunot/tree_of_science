@@ -38,8 +38,22 @@ CHANGELOG:
 
 
 import csv, io, re, os, time, networkx as nx
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, deque as _deque
 from typing import Optional
+
+# Aceleración opcional con rapidfuzz (fallback al Python puro si no está disponible)
+try:
+    from rapidfuzz.distance import JaroWinkler as _RFJaroWinkler
+    _HAS_RAPIDFUZZ = True
+except ImportError:
+    _HAS_RAPIDFUZZ = False
+
+# Aumentar el límite de tamaño de campo CSV para archivos con campos grandes
+# (el límite por defecto es 128KB, puede fallar con bibliografías grandes)
+csv.field_size_limit(10 * 1024 * 1024)  # 10MB
+
+# Longitud máxima de referencias para evitar procesamiento excesivo de campos muy grandes
+_MAX_REFS_LENGTH = 50000  # 50KB por registro de referencias
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -312,6 +326,9 @@ class TextRecordParser:
             )
             if refs_m:
                 refs_block = refs_m.group(1)
+                # Truncar referencias muy largas para evitar procesamiento excesivo
+                if len(refs_block) > _MAX_REFS_LENGTH:
+                    refs_block = refs_block[:_MAX_REFS_LENGTH]
                 # Dividir por ";" y limpiar entradas vacías
                 refs_raw = [r.strip() for r in refs_block.split(';') if r.strip()]
                 # ✅ Reutiliza la misma función estática _parse_refs que WoS
@@ -369,20 +386,19 @@ class ScopusCSVParser:
     """
 
     def parse(self, file_obj) -> list:
-        # Detectar binario por comportamiento: lee 1 byte de prueba
         if isinstance(file_obj, bytes):
-            file_obj = io.StringIO(file_obj.decode("utf-8-sig"))
+            stream = io.StringIO(file_obj.decode("utf-8-sig"))
+        elif isinstance(file_obj.read(0), bytes):
+            # Stream binario: envolver con TextIOWrapper SIN leer todo
+            import codecs
+            stream = codecs.getreader("utf-8-sig")(file_obj)
         else:
-            probe = file_obj.read(1)
-            if isinstance(probe, bytes):
-                rest = file_obj.read()
-                file_obj = io.TextIOWrapper(
-                    io.BytesIO(probe + rest), encoding="utf-8-sig"
-                )
-            else:
-                rest = file_obj.read()
-                file_obj = io.StringIO(probe + rest)
-        return [self._row(r) for r in csv.DictReader(file_obj)]
+            # Ya es texto
+            stream = file_obj
+
+        # csv.DictReader es lazy: lee fila a fila
+        reader = csv.DictReader(stream)
+        return [self._row(r) for r in reader]
 
     def _row(self, row: dict) -> dict:
         def i(v):
@@ -395,6 +411,10 @@ class ScopusCSVParser:
         tc       = i(row.get("Cited by", "0") or "0")
         authors  = [a.strip() for a in (row.get("Authors", "") or "").split(";") if a.strip()]
         refs_str = row.get("References", "")
+        
+        # Truncar referencias muy largas para evitar procesamiento excesivo
+        if len(refs_str) > _MAX_REFS_LENGTH:
+            refs_str = refs_str[:_MAX_REFS_LENGTH]
 
         refs         = self._parse_refs(refs_str)
         refs_strings = [r.strip() for r in refs_str.split(";") if r.strip()] if refs_str else []
@@ -484,6 +504,9 @@ class ScopusBibParser:
         # Scopus BIB estándar no exporta referencias; si el campo está presente
         # (e.g. BIB generados por otras herramientas), lo procesamos correctamente.
         refs_raw_str  = f.get("references", "").strip("{} \n")
+        # Truncar referencias muy largas para evitar procesamiento excesivo
+        if len(refs_raw_str) > _MAX_REFS_LENGTH:
+            refs_raw_str = refs_raw_str[:_MAX_REFS_LENGTH]
         # Strings crudos: necesarios para Jaro-Winkler y ghost nodes
         refs_strings  = [r.strip() for r in refs_raw_str.split(";") if r.strip()]
         # IDs normalizados: DOI si existe, si no → autor_año (mismo formato que CSV)
@@ -532,20 +555,38 @@ class ScopusRISParser:
 
     def _fin(self, r: dict) -> dict:
         def f(t): return (r.get(t) or [""])[0]
-        title = f("TI")
-        doi   = f("DO").strip()
+        title   = f("TI")
+        doi     = f("DO").strip()
         try:    year = int((f("PY") or "0")[:4])
         except: year = 0
-        cm = re.search(r'Cited By:\s*(\d+)', f("N1"), re.IGNORECASE)
-        tc = int(cm[1]) if cm else 0
+        cm      = re.search(r'Cited By:\s*(\d+)', f("N1"), re.IGNORECASE)
+        tc      = int(cm[1]) if cm else 0
         authors = r.get("AU", [])
-        pid = doi or _generate_canonical_id(
+        pid     = doi or _generate_canonical_id(
             authors[0] if authors else "", year, title
         )
+
+        # ── Referencias RIS: campo CR (WoS-style) o N1 con DOIs ──────────────────
+        refs_raw: list = []
+        refs_ids: list = []
+        # Scopus RIS exporta referencias en campo CR (una por entrada) o como
+        # bloque en UR/N1. Intentamos ambas estrategias.
+        cr_lines = r.get("CR", [])
+        if cr_lines:
+            refs_raw = [ln.strip() for ln in cr_lines if ln.strip()]
+            refs_ids = TextRecordParser._parse_refs(refs_raw)
+        else:
+            # Fallback: buscar DOIs sueltos en cualquier campo de texto libre
+            text_blob = " ".join(r.get("N1", []) + r.get("UR", []) + r.get("L3", []))
+            doi_hits  = re.findall(r'10\.\d{4,}/\S+', text_blob)
+            refs_ids  = list(dict.fromkeys(d.rstrip(",. )").lower() for d in doi_hits))
+            refs_raw  = refs_ids  # sin string crudo disponible
+
         return {
             "id": pid, "label": title, "title": title, "authors": authors,
             "year": year, "doi": doi or None, "times_cited": tc,
-            "references": [],
+            "references":    refs_ids,
+            "_refs_strings": refs_raw,
             "url": f("UR") or None,
             "source": "scopus_ris",
         }
@@ -591,6 +632,10 @@ class JaroWinklerDeduplicator:
         return (matches / l1 + matches / l2 + (matches - t / 2) / matches) / 3
 
     def similarity(self, s1: str, s2: str, p: float = 0.1) -> float:
+        if _HAS_RAPIDFUZZ:
+            # rapidfuzz retorna similitud en [0,1] directamente
+            return _RFJaroWinkler.similarity(s1, s2)
+        # Fallback: implementación Python pura existente
         j = self._jaro(s1, s2)
         prefix = sum(a == b for a, b in zip(s1[:4], s2[:4]))
         return j + prefix * p * (1 - j)
@@ -634,24 +679,52 @@ class JaroWinklerDeduplicator:
         return f"{last[:6]}_{year}_{page}"
 
     def build_duplicates(self, labels: list, fmt: str = ".txt") -> dict:
-        """
-        Devuelve {variante → canónico}.
-        fmt: ".txt" para WoS, ".csv" para Scopus CSV.
-        """
-        key_fn = self._key_wos if fmt == ".txt" else self._key_csv
+        """Devuelve {variante → canónico}. Garantiza transitividad vía Union-Find."""
+        key_fn  = self._key_wos if fmt == ".txt" else self._key_csv
+
+        # Union-Find con path compression
+        parent: dict = {}
+        def find(x):
+            while parent.get(x, x) != x:
+                parent[x] = parent.get(parent.get(x, x), parent.get(x, x))
+                x = parent[x]
+            return x
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                # Canónico = el lexicográficamente menor (reproducible)
+                if ra < rb:
+                    parent[rb] = ra
+                else:
+                    parent[ra] = rb
+
         buckets: dict = defaultdict(list)
         for lbl in labels:
             buckets[key_fn(lbl)].append(lbl)
-        duplicates: dict = {}
+
         for bucket in buckets.values():
-            if len(bucket) <= 1: continue
+            if len(bucket) <= 1:
+                continue
             sorted_b = sorted(bucket)
-            for i in range(len(sorted_b)):
-                canon = duplicates.get(sorted_b[i], sorted_b[i])
-                for j in range(i + 1, len(sorted_b)):
-                    if self._should_merge(canon, sorted_b[j]):
-                        duplicates[sorted_b[j]] = canon
-        return duplicates
+            if _HAS_RAPIDFUZZ and len(sorted_b) > 20:
+                from rapidfuzz import process as _rfp
+                from rapidfuzz.distance import JaroWinkler as _RFJW
+                matrix = _rfp.cdist(sorted_b, sorted_b,
+                                 scorer=_RFJW.similarity,
+                                 score_cutoff=self.threshold)
+                for i in range(len(sorted_b)):
+                    for j in range(i + 1, len(sorted_b)):
+                        if matrix[i][j] >= self.threshold:
+                            if self._should_merge(sorted_b[i], sorted_b[j]):
+                                union(sorted_b[i], sorted_b[j])
+            else:
+                for i in range(len(sorted_b)):
+                    for j in range(i + 1, len(sorted_b)):
+                        if self._should_merge(sorted_b[i], sorted_b[j]):
+                            union(sorted_b[i], sorted_b[j])
+
+        # Construir mapa variante→canónico (solo para no-canónicos)
+        return {lbl: find(lbl) for lbl in labels if find(lbl) != lbl}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -831,45 +904,51 @@ class ScienceTreeClassifier:
         return G
 
     def _sap_bfs(self, G: nx.DiGraph, in_deg: dict) -> dict:
-        """
-        SAP O(V+E) por BFS — modo preciso (fast_sap=False).
-
-        minor_root y minor_leaf participan en el BFS igual que root y leaf
-        (tienen la misma posición estructural; solo difieren en si son visibles).
-        trunk y branch son conectores equivalentes.
-        dead_leaf, isolated reciben valores directos sin BFS.
-        """
         roots      = [n for n, d in G.nodes(data=True) if d["group"] in ("root", "minor_root")]
         leaves     = [n for n, d in G.nodes(data=True) if d["group"] in ("leaf", "minor_leaf")]
         dead_leaves= [n for n, d in G.nodes(data=True) if d["group"] == "dead_leaf"]
-        connectors = [n for n, d in G.nodes(data=True)
-                      if d["group"] in ("trunk", "branch")]
-        result: dict = {n: 0 for n in G.nodes()}
+        result     = {n: 0 for n in G.nodes()}
 
-        for r in roots:
-            result[r] = in_deg[r]
+        root_w = {r: in_deg[r] for r in roots}
+        leaf_w = {lf: G.out_degree(lf) for lf in leaves}
+        for r  in roots:       result[r]  = root_w[r]
+        for dl in dead_leaves: result[dl] = G.out_degree(dl)
 
-        for leaf in leaves:
-            lengths      = nx.single_source_shortest_path_length(G, leaf)
-            result[leaf] = sum(r in lengths for r in roots)
+        try:
+            topo = list(nx.topological_sort(G))
+        except nx.NetworkXUnfeasible:
+            # Ciclo detectado: fallback a fast SAP (in×out)
+            for n in G.nodes():
+                result[n] = in_deg[n] * G.out_degree(n)
+            return result
 
-        # dead_leaf: proxy directo (no participan en flujo de trunks/branches)
-        for dl in dead_leaves:
-            result[dl] = G.out_degree(dl)
+        # Pase hacia adelante: propaga pesos de hojas → raíces
+        # leaf_flow[n] = suma de pesos de hojas que pueden alcanzar n en G
+        leaf_flow = defaultdict(int)
+        for n in topo:
+            if n in leaf_w:
+                leaf_flow[n] = leaf_w[n]
+            for s in G.successors(n):
+                leaf_flow[s] += leaf_flow[n]
 
-        G_rev = G.reverse(copy=False)
-        for c in connectors:
-            result[c] += sum(
-                result[r]
-                for r in roots
-                if r in nx.single_source_shortest_path_length(G, c)
-            )
-            result[c] += sum(
-                result[lf]
-                for lf in leaves
-                if lf in nx.single_source_shortest_path_length(G_rev, c)
-            )
+        # Pase hacia atrás: propaga pesos de raíces → hojas
+        # root_flow[n] = suma de pesos de raíces alcanzables desde n en G
+        root_flow = defaultdict(int)
+        for n in reversed(topo):
+            if n in root_w:
+                root_flow[n] = root_w[n]
+            for p in G.predecessors(n):
+                root_flow[p] += root_flow[n]
 
+        for n in G.nodes():
+            g = G.nodes[n].get("group", "")
+            if g in ("root", "minor_root"):
+                result[n] = root_w.get(n, 0)
+            elif g in ("leaf", "minor_leaf"):
+                result[n] = leaf_flow.get(n, 0)
+            elif g in ("trunk", "branch"):
+                result[n] = leaf_flow.get(n, 0) + root_flow.get(n, 0)
+            # dead_leaf e isolated ya asignados arriba
         return result
 
 
@@ -889,18 +968,44 @@ class MetadataOnlyClassifier:
             c   = p.get("times_cited", 0)
             yr  = p.get("year") or 0
             age = ref_year - yr if yr else 0
-            nc  = c / mc; na = min(age / 20, 1.0)
-            if   c > 0 and c >= p75 and age > 3:
-                g = "root";  rs, ts, ls = nc*0.7+na*0.3, nc*0.3, 0.1
+            nc  = c / mc
+            na  = min(age / 20, 1.0)   # normaliza edad a [0,1] con saturación en 20 años
+
+            # Coeficientes derivados de la taxonomía ToS:
+            #   root  → alta citación + antigüedad: nc domina, age como modificador
+            #   trunk → citación media + edad media: balance
+            #   leaf  → baja citación + reciente: recencia domina
+            if c > 0 and c >= p75 and age > 3:
+                g  = "root"
+                rs = min(nc * 0.7 + na * 0.3, 1.0)
+                ts = min(nc * 0.3,             1.0)
+                ls = 0.1
             elif yr and age <= 3:
-                g = "leaf";  rs, ts, ls = nc*0.2, nc*0.3, (1-na)*0.8
+                g  = "leaf"
+                rs = min(nc * 0.2,             1.0)
+                ts = min(nc * 0.3,             1.0)
+                ls = min((1 - na) * 0.8,       1.0)
             elif c > 0 and age > 3:
-                g = "trunk"; rs, ts, ls = nc*0.4, 0.5+nc*0.3, (1-nc)*0.3
+                g  = "trunk"
+                rs = min(nc * 0.4,             1.0)
+                ts = min(0.5 + nc * 0.3,       1.0)
+                ls = min((1 - nc) * 0.3,       1.0)
             else:
-                g = "leaf";  rs, ts, ls = 0.05, 0.1, 0.3
-            s = {"root": rs, "trunk": ts, "leaf": ls}[g]
-            res.append({**p, "root": rs, "trunk": ts, "leaf": ls, "group": g,
-                        "_sap": s, "_sap_norm": s, "total_value": rs + ts + ls})
+                g  = "leaf"
+                rs, ts, ls = 0.05, 0.1, 0.3
+
+            s          = {"root": rs, "trunk": ts, "leaf": ls}[g]
+            total      = rs + ts + ls
+            # Normalizar total_value a escala comparable con SAP estructural (max=1.0)
+            total_norm = total / 3.0   # máximo teórico: 3.0 (todos los scores en 1.0)
+            res.append({
+                **p,
+                "root": rs, "trunk": ts, "leaf": ls,
+                "group": g,
+                "_sap": round(s, 4),
+                "_sap_norm": round(s, 4),
+                "total_value": round(total_norm, 4),
+            })
         return res
 
 
@@ -961,6 +1066,29 @@ class ReferenceNodeExtractor:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+def _prune_min_degree(G: nx.DiGraph, min_deg: int) -> nx.DiGraph:
+    """Poda iterativa en O(V+E) usando cola de nodos candidatos."""
+    if min_deg <= 0:
+        return G
+    degree = dict(G.degree())
+    queue  = _deque(n for n, d in degree.items() if d < min_deg)
+    in_queue = set(queue)
+    while queue:
+        n = queue.popleft()
+        in_queue.discard(n)
+        if n not in G:
+            continue
+        for nb in list(G.predecessors(n)) + list(G.successors(n)):
+            G.remove_node(n)
+            if nb in G:
+                degree[nb] = G.degree(nb)
+                if degree[nb] < min_deg and nb not in in_queue:
+                    queue.append(nb)
+                    in_queue.add(nb)
+            break
+    return G
+
+
 # CONSTRUCTOR PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1001,6 +1129,9 @@ class ScienceTreeBuilder:
         """
         self.min_degree             = min_degree
         self._min_coc_override      = min_cocitations
+        self.min_cocitations: int = self._resolve_min_cocitations(0)
+        # Se recalcula con el corpus_size real en build_from_file; esto evita AttributeError
+        # si _add_ghost_nodes es llamado antes que build_from_file (tests, subclases).
         self.include_ghost_nodes    = include_ghost_nodes
         self.exclude_self_citations = exclude_self_citations
         self.use_jaro_winkler       = use_jaro_winkler
@@ -1057,9 +1188,16 @@ class ScienceTreeBuilder:
 
         # ── Parseo ────────────────────────────────────────────────────────────
         t0 = time.perf_counter()
-        opener = (archivo.open("rb") if hasattr(archivo, "open") else open(archivo, "rb")) or ____ # type: ignore
-        with opener as f:
-            papers = cls().parse(f)
+        if hasattr(archivo, "open"):        # Django FieldFile / pathlib.Path
+            opener = archivo.open("rb")
+        elif hasattr(archivo, "read"):      # file-like object ya abierto
+            papers = cls().parse(archivo)
+            opener = None
+        else:                               # string path
+            opener = open(archivo, "rb")    # type: ignore[arg-type]
+        if opener is not None:
+            with opener as f:
+                papers = cls().parse(f)
         perf: dict = {"parse_s": round(time.perf_counter() - t0, 4)}
         if not papers:
             raise ValueError("El archivo no contiene papers procesables.")
@@ -1088,7 +1226,7 @@ class ScienceTreeBuilder:
                 "discarded_lcc": 0,
                 "n_components": 1,
             }
-            return self._extracted_from_build_from_file_57(t_total, perf, G)
+            return self._finalize_graph(t_total, perf, G)
         # ── Ghost nodes ───────────────────────────────────────────────────────
         t0 = time.perf_counter()
         if self.include_ghost_nodes:
@@ -1100,10 +1238,7 @@ class ScienceTreeBuilder:
         t0 = time.perf_counter()
         G  = self._build_graph(papers)
         G.remove_edges_from(list(nx.selfloop_edges(G)))
-        prev = -1
-        while prev != G.number_of_nodes():
-            prev = G.number_of_nodes()
-            G.remove_nodes_from([n for n in list(G.nodes) if G.degree(n) < self.min_degree])
+        G = _prune_min_degree(G, self.min_degree)
         perf["build_s"] = round(time.perf_counter() - t0, 4)
 
         if G.number_of_nodes() == 0 or G.number_of_edges() == 0:
@@ -1115,7 +1250,7 @@ class ScienceTreeBuilder:
                 "discarded_lcc": 0,
                 "n_components": 1,
             }
-            return self._extracted_from_build_from_file_57(t_total, perf, G2)
+            return self._finalize_graph(t_total, perf, G2)
         # ── LCC: mayor componente débilmente conectado ────────────────────────
         t0 = time.perf_counter()
         if self.use_lcc:
@@ -1137,10 +1272,10 @@ class ScienceTreeBuilder:
         G  = self.clf.classify(G)
         perf["classify_s"] = round(time.perf_counter() - t0, 4)
 
-        return self._extracted_from_build_from_file_57(t_total, perf, G)
+        return self._finalize_graph(t_total, perf, G)
 
     # TODO Rename this here and in `build_from_file`
-    def _extracted_from_build_from_file_57(self, t_total, perf, arg2):
+    def _finalize_graph(self, t_total, perf, arg2):
         perf["total_s"] = round(time.perf_counter() - t_total, 4)
         arg2.graph["_perf"] = perf
         return self._apply_max_nodes(arg2)
@@ -1160,7 +1295,11 @@ class ScienceTreeBuilder:
         all_ref_strings: list = []
         paper_refs_map:  dict = {}
         for p in papers:
-            raw = p.get("_refs_raw", []) if ext == ".txt" else p.get("references", p.get("_refs_strings", []))
+            if ext == ".txt":
+                raw = p.get("_refs_raw", [])
+            else:
+                # Para CSV y BIB: usar strings crudos (_refs_strings), nunca los IDs normalizados
+                raw = p.get("_refs_strings") or p.get("_refs_raw", [])
             
             # Filtramos strings vacíos que nos genere Scopus:
             raw = [r for r in raw if r.strip()] 
@@ -1235,6 +1374,20 @@ class ScienceTreeBuilder:
     # ── Construcción del grafo ─────────────────────────────────────────────────
 
     def _build_graph(self, papers: list) -> nx.DiGraph:
+        # ── Detección de DOIs duplicados ─────────────────────────────────────────
+        doi_best: dict = {}   # doi_key → paper con más citaciones
+        no_doi:   list = []
+        for p in papers:
+            if p.get("doi"):
+                doi_key = p["doi"].lower().strip()
+                existing = doi_best.get(doi_key)
+                if existing is None or p.get("times_cited", 0) > existing.get("times_cited", 0):
+                    doi_best[doi_key] = p
+            else:
+                no_doi.append(p)
+        papers = list(doi_best.values()) + no_doi
+        # ─────────────────────────────────────────────────────────────────────────
+
         G   = nx.DiGraph()
         idx: dict = {}
 
@@ -1298,11 +1451,29 @@ class ScienceTreeBuilder:
         for n, d in G.nodes(data=True):
             grp = d.get("group", "leaf")
             groups.setdefault(grp, []).append((n, d.get("_sap", 0)))
-        to_remove = []
-        for nodes in groups.values():
-            nodes_sorted = sorted(nodes, key=lambda x: x[1], reverse=True)
+        to_remove   = []
+        total_keep  = 0
+        group_items = []
+        for nodes_list in groups.values():
+            nodes_sorted = sorted(nodes_list, key=lambda x: x[1], reverse=True)
             proportion   = len(nodes_sorted) / total
-            keep_n       = max(1, round(self.max_nodes * proportion))
+            quota        = max(1, round(self.max_nodes * proportion))
+            group_items.append((nodes_sorted, quota))
+
+        # Ajuste final: si la suma de cuotas supera max_nodes, recortar al grupo
+        # con más nodos descartados (los de menor SAP global)
+        total_quoted = sum(q for _, q in group_items)
+        if total_quoted > self.max_nodes:
+            # Quitar 1 del grupo más grande iterativamente hasta cuadrar
+            overshoot = total_quoted - self.max_nodes
+            group_items_sorted = sorted(group_items, key=lambda x: x[1], reverse=True)
+            for i in range(overshoot):
+                idx = i % len(group_items_sorted)
+                _, q = group_items_sorted[idx]
+                group_items_sorted[idx] = (group_items_sorted[idx][0], max(1, q - 1))
+            group_items = group_items_sorted
+
+        for nodes_sorted, keep_n in group_items:
             to_remove.extend(n for n, _ in nodes_sorted[keep_n:])
         G = G.copy()
         G.remove_nodes_from(to_remove)
@@ -1429,3 +1600,99 @@ if __name__ == "__main__":
         print(f"Error: {e}")
         import traceback; traceback.print_exc()
         sys.exit(1)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTS DE REGRESIÓN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _run_tests():
+    """Ejecuta todos los tests de regresión. Requiere scopus.csv en el CWD."""
+    import traceback
+    tests = [
+        test_bug1_ghost_nodes_csv_year,
+        test_bug2_min_cocitations_attribute,
+        test_bug3_ris_references_not_empty,
+        test_bug5_max_nodes_not_exceeded,
+        test_alg2_metadata_total_value_normalized,
+        test_full_pipeline_csv,
+    ]
+    passed, failed = 0, 0
+    for t in tests:
+        try:
+            t()
+            print(f"  PASS  {t.__name__}")
+            passed += 1
+        except Exception as e:
+            print(f"  FAIL  {t.__name__}: {e}")
+            traceback.print_exc()
+            failed += 1
+    print(f"\n{passed}/{passed+failed} tests passed.")
+    return failed == 0
+
+
+def test_bug1_ghost_nodes_csv_year():
+    """Menos del 5% de ghost nodes deben tener year=None tras el fix."""
+    with open("scopus.csv", "rb") as f:
+        papers = ScopusCSVParser().parse(f)
+    builder = ScienceTreeBuilder(min_cocitations=1)
+    ghosts = [p for p in builder._add_ghost_nodes(papers, ".csv") if p.get("_is_ghost")]
+    null_year = sum(1 for g in ghosts if not g.get("year"))
+    assert null_year / max(len(ghosts), 1) < 0.05, \
+        f"Ghost nodes con year=None: {null_year}/{len(ghosts)}"
+
+
+def test_bug2_min_cocitations_attribute():
+    """min_cocitations debe existir inmediatamente tras __init__."""
+    b = ScienceTreeBuilder(min_cocitations=3)
+    assert hasattr(b, "min_cocitations"), "AttributeError latente no corregido"
+    assert b.min_cocitations == 3
+
+
+def test_bug3_ris_references_not_empty():
+    """ScopusRISParser debe generar _refs_strings aunque sea vacío, no ausente."""
+    import io as _io
+    ris_sample = _io.BytesIO(
+        b"TY  - JOUR\r\nTI  - Test Paper\r\nAU  - Smith J\r\nPY  - 2020\r\n"
+        b"DO  - 10.1234/test\r\nER  -\r\n"
+    )
+    papers = ScopusRISParser().parse(ris_sample)
+    assert papers, "RIS parser no retornó papers"
+    assert "references" in papers[0], "Campo references ausente"
+    assert papers[0]["references"] is not None
+    assert "_refs_strings" in papers[0], "Campo _refs_strings ausente"
+
+
+def test_bug5_max_nodes_not_exceeded():
+    """El grafo recortado no debe superar max_nodes."""
+    for limit in [30, 50, 75]:
+        G = ScienceTreeBuilder(min_cocitations=1, max_nodes=limit).build_from_file("scopus.csv")
+        assert G.number_of_nodes() <= limit + 1, \
+            f"max_nodes={limit} pero el grafo tiene {G.number_of_nodes()} nodos"
+
+
+def test_alg2_metadata_total_value_normalized():
+    """total_value en MetadataOnlyClassifier debe estar en [0, 1]."""
+    papers = [
+        {"times_cited": 295, "year": 2005, "title": "Foundational work", "id": "p1"},
+        {"times_cited": 0,   "year": 2024, "title": "Brand new paper",   "id": "p2"},
+        {"times_cited": 12,  "year": 2018, "title": "Middle ground",     "id": "p3"},
+    ]
+    result = MetadataOnlyClassifier().classify(papers)
+    for r in result:
+        assert 0.0 <= r["total_value"] <= 1.0, \
+            f"total_value fuera de [0,1]: {r['total_value']} para {r['id']}"
+
+
+def test_full_pipeline_csv():
+    """Pipeline completo debe terminar sin excepciones y producir un grafo válido."""
+    G = ScienceTreeBuilder().build_from_file("scopus.csv")
+    assert G.number_of_nodes() > 0, "Grafo vacío"
+    assert G.number_of_edges() > 0, "Grafo sin aristas"
+    groups = {d.get("group") for _, d in G.nodes(data=True)}
+    assert groups & {"root", "trunk", "leaf"}, f"Grupos inesperados: {groups}"
+    perf = G.graph.get("_perf", {})
+    assert perf.get("total_s", 999) < 10.0, f"Pipeline tardó {perf.get('total_s')}s"
+
+
+if __name__ == "__main__" and "--test" in __import__("sys").argv:
+    _run_tests()
