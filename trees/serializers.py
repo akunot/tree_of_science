@@ -205,11 +205,9 @@ class TreeCreateSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def _extract_links(graph):
-        """
-        Extrae los enlaces del grafo en formato node-link.
-        """
         raw_data = nx.node_link_data(graph)
-        return raw_data.get("links", [])
+        # nx >= 3.0 usa "edges"; nx 2.x usaba "links"
+        return raw_data.get("edges", raw_data.get("links", []))
 
     @staticmethod
     def _compose_transformed_data(seed, nodes_with_attributes, links, stats):
