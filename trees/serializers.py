@@ -76,7 +76,7 @@ class TreeCreateSerializer(serializers.ModelSerializer):
                 include_ghost_nodes=True,  # ✅ Mantener ghost nodes para completitud
                 exclude_self_citations=True,
                 use_jaro_winkler=True,   # ✅ Mantener deduplicación para evitar duplicados
-                fast_sap=True,           # ✅ O(N) - rápido sin perder precisión
+                fast_sap=False,           # ✅ O(N) - rápido sin perder precisión
                 use_lcc=True,
                 leaf_window=5,
                 top_trunk_limit=30,

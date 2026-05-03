@@ -15,7 +15,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { select, forceSimulation, forceCollide, forceY, forceX } from 'd3';
+import { select, forceSimulation, forceCollide, forceY, forceX, scaleSqrt, scaleLinear, extent } from 'd3';
 
 const TreeDetail = () => {
   const { id } = useParams();
@@ -183,27 +183,83 @@ const TreeDetail = () => {
     [groupedNodes]
   );
 
-  // Layout D3
+  // Layout D3 con normalización por categoría y métrica combinada
   const treeLayout = useMemo(() => {
     if (!filteredNodes.length || dimensions.width === 0) return { nodes: [], links: [] };
 
     const maxNodesForPhysics = 200;
     const nodesToSimulate = filteredNodes.slice(0, maxNodesForPhysics);
 
-    // Ajustar radio base según el factor de escala
-    const baseRadius = 10 * scaleFactor;
-    
-    const nodes = nodesToSimulate.map((d, i) => {
-      const nodeValueScale = Math.sqrt(d.total_value || 1) * 0.8;
-      // El radio mínimo y máximo también se ajusta con el scaleFactor
-      const radius = Math.max(6 * scaleFactor, Math.min(22 * scaleFactor, baseRadius + nodeValueScale * scaleFactor));
+    // Agrupar nodos por categoría para normalización local
+    const nodesByCategory = {
+      root: nodesToSimulate.filter(d => d.group === 'root'),
+      trunk: nodesToSimulate.filter(d => d.group === 'trunk'),
+      leaf: nodesToSimulate.filter(d => d.group === 'leaf')
+    };
 
-      const radialPos = getRadialPosition(d, i, d.group, dimensions.width, dimensions.height);
+    // Calcular máximos por categoría para normalización
+    const maxByCategory = {};
+    Object.keys(nodesByCategory).forEach(category => {
+      const categoryNodes = nodesByCategory[category];
+      maxByCategory[category] = {
+        maxSap: Math.max(...categoryNodes.map(d => d._sap || 0)),
+        maxCited: Math.max(...categoryNodes.map(d => d.times_cited || 0))
+      };
+    });
+
+    // Función para calcular radio basado en métrica combinada
+    const calculateNodeRadius = (node) => {
+      const MIN_RADIUS = 6;  // Reducido 45% (10 * 0.55)
+      const MAX_RADIUS = 22; // Reducido 45% (35 * 0.55)
+      
+      const category = node.group;
+      const maxSap = maxByCategory[category]?.maxSap || 1;
+      const maxCited = maxByCategory[category]?.maxCited || 1;
+      
+      // Calcular score normalizado por categoría (50% SAP + 50% times_cited)
+      const sapScore = maxSap > 0 ? (node._sap || 0) / maxSap : 0;
+      const citedScore = maxCited > 0 ? (node.times_cited || 0) / maxCited : 0;
+      const combinedScore = (sapScore * 0.5) + (citedScore * 0.5);
+      
+      // Aplicar raíz cuadrada para suavizar diferencias extremas
+      const smoothedScore = Math.sqrt(combinedScore);
+      
+      // Calcular radio con límites estrictos
+      const radius = MIN_RADIUS + (smoothedScore * (MAX_RADIUS - MIN_RADIUS));
+      return Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, radius));
+    };
+
+    // Posicionamiento inicial basado en categoría con offset reducido
+    const getYPositionByCategory = (node, index, totalInCategory) => {
+      const h = dimensions.height;
+      const centerY = h / 2;
+      const offset = h * 0.12;  // Mismo offset que la simulación
+      const categorySpread = 0.03; // Reducido para menos vuelo al cargar
+      
+      if (node.group === 'root') {
+        const baseY = centerY + offset; // Raíces abajo del centro
+        const variation = (index / Math.max(totalInCategory - 1, 1)) * categorySpread * h;
+        return baseY + variation - (categorySpread * h / 2);
+      } else if (node.group === 'trunk') {
+        const baseY = centerY; // Tronco en el centro
+        const variation = (index / Math.max(totalInCategory - 1, 1)) * categorySpread * h;
+        return baseY + variation - (categorySpread * h / 2);
+      } else {
+        const baseY = centerY - offset; // Hojas arriba del centro
+        const variation = (index / Math.max(totalInCategory - 1, 1)) * categorySpread * h;
+        return baseY + variation - (categorySpread * h / 2);
+      }
+    };
+
+    const nodes = nodesToSimulate.map((d, i) => {
+      const radius = calculateNodeRadius(d);
+      const categoryNodes = nodesByCategory[d.group];
+      const indexInCategory = categoryNodes.findIndex(n => n.id === d.id);
 
       return {
         ...d,
-        x: radialPos.x,
-        y: radialPos.y,
+        x: dimensions.width / 2 + (Math.random() - 0.5) * 50, // Posición inicial cerca del centro
+        y: getYPositionByCategory(d, indexInCategory, categoryNodes.length),
         radius: radius,
         index: i,
         vx: 0,
@@ -211,8 +267,8 @@ const TreeDetail = () => {
       };
     });
 
-    return { nodes, links: [] };
-  }, [filteredNodes, dimensions, getRadialPosition, scaleFactor]);
+    return { nodes, links: [], calculateNodeRadius };
+  }, [filteredNodes, dimensions]);
 
   // Abrir documento
   const openDocument = useCallback((node) => {
@@ -344,7 +400,7 @@ const TreeDetail = () => {
     }
   }, [id, tree]);
 
-  // Simulación D3
+  // Simulación D3 con estructura de árbol estricta
   const restartSimulation = useCallback(() => {
     if (!svgRef.current) return;
     if (!treeLayout.nodes.length) return;
@@ -353,6 +409,7 @@ const TreeDetail = () => {
     setIsSimulating(true);
 
     const nodes = treeLayout.nodes.map(n => ({ ...n }));
+    const { calculateNodeRadius } = treeLayout;
 
     const centerX = dimensions.width / 2;
 
@@ -363,52 +420,40 @@ const TreeDetail = () => {
       .force(
         "collide",
         forceCollide()
-          .radius(d => (d.radius || 6) + 4)
-          .strength(1.0)
-          .iterations(18)
+          .radius(d => calculateNodeRadius(d) + 1)  // Padding muy pequeño para encajar como Tetris
+          .strength(1.0)  // Fuerza fuerte para empaquetamiento tight
+          .iterations(18)  // Suficientes iteraciones para buen encaje
       )
       .force(
         "y",
         forceY((d) => {
-          // acercamos más las bandas verticales para que parezcan un tronco continuo
+          // Offset vertical aumentado para dar espacio al tronco
           const h = dimensions.height;
+          const centerY = h / 2;
+          const offset = h * 0.22;  // Offset aumentado para espacio del tronco
+          
           if (d.group === 'root') {
-            return h * 0.70;     // antes 0.78
+            return centerY + offset;     // Raíces abajo del centro
           } else if (d.group === 'trunk') {
-            return h * 0.55;     // antes 0.50
+            return centerY;              // Tronco en el centro
           } else {
-            return h * 0.35;     // antes 0.22
+            return centerY - offset;     // Hojas arriba del centro
           }
-        }).strength(0.12)
+        }).strength(0.2)  // Fuerza moderada para obediencia a la altura
       )
       .force(
         "x",
-        forceX((d) => {
-          const groupNodes = nodes.filter(n => n.group === d.group);
-          const idx = groupNodes.findIndex(n => n.id === d.id);
-          const count = Math.max(groupNodes.length, 1);
-          const t = count === 1 ? 0 : (idx / (count - 1)) * 2 - 1; // [-1, 1]
-
-          // amplitud horizontal según grupo
-          const baseAmp = dimensions.width * 0.15;
-          const amp =
-            d.group === 'root'
-              ? baseAmp * 0.6   // raíces un poco abiertas
-              : d.group === 'trunk'
-              ? baseAmp * 0.3   // tronco más compacto
-              : baseAmp * 1.0;  // hojas más abiertas
-
-          // curva: combinamos parábola + ligero desplazamiento lateral por grupo
-          const curved = t * Math.abs(t);
-
-          // pequeño “sesgo” lateral para que no quede tan simétrico con pocos nodos
-          const groupOffset =
-            d.group === 'root' ? -dimensions.width * 0.03
-            : d.group === 'trunk' ? 0
-            : dimensions.width * 0.03;
-
-          return centerX + curved * amp + groupOffset;
-        }).strength(0.10)
+        forceX(dimensions.width / 2)  // Centro horizontal para todas las categorías
+          .strength((d) => {
+            // Fuerza X agresiva para silueta de árbol definida
+            if (d.group === 'leaf') {
+              return 0.02;   // Muy débil - copa muy amplia y expansiva
+            } else if (d.group === 'trunk') {
+              return 0.8;    // Muy fuerte - columna perfecta y estrecha
+            } else {
+              return 0.05;   // Muy débil - base controlada pero abierta
+            }
+          })
       )
       .stop();
 
@@ -449,16 +494,16 @@ const TreeDetail = () => {
         if (d.group === 'trunk') return '#8b6f47';
         return '#19c3e6';
       })
-      .attr("stroke", "#f5f5f0")
-      .attr("stroke-width", 1.5)
+      .attr("stroke", "#f5f5f0")  // Borde visible para reducir fatiga visual
+      .attr("stroke-width", 1.5)  // Borde bien visible
       .style("cursor", "pointer")
-      .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.3))")
+      .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.3))")  
       .style("transition", "all 0.2s ease")
       .on("mouseenter", function(event, d) {
         select(this)
           .transition()
           .duration(150)
-          .attr("stroke-width", 3)
+          .attr("stroke-width", 3)  // Borde más grueso al hover para feedback visual
           .attr("r", d => d.radius + 2);
 
         setHoveredNode(d);
@@ -468,7 +513,7 @@ const TreeDetail = () => {
         select(this)
           .transition()
           .duration(150)
-          .attr("stroke-width", 1.5)
+          .attr("stroke-width", 1.5)  // Volver al borde normal
           .attr("r", d => d.radius);
 
         setShowTooltip(false);
@@ -650,6 +695,12 @@ const TreeDetail = () => {
         {hoveredNode.year && (
           <p className="text-[#f5f5f0]/60 text-[10px] mb-1">
             📅 {hoveredNode.year}
+          </p>
+        )}
+
+        {hoveredNode.pagerank_norm !== undefined && hoveredNode.pagerank_norm !== null && (
+          <p className="text-[#f5f5f0]/60 text-[10px] mb-1">
+            🎯 Autoridad: {hoveredNode.pagerank_norm.toFixed(1)}
           </p>
         )}
 

@@ -1278,6 +1278,31 @@ class ScienceTreeBuilder:
     def _finalize_graph(self, t_total, perf, arg2):
         perf["total_s"] = round(time.perf_counter() - t_total, 4)
         arg2.graph["_perf"] = perf
+        
+        # ── PageRank Calculation ───────────────────────────────────────────────
+        # Calculate PageRank for all nodes in the graph
+        if arg2.number_of_nodes() > 0:
+            pagerank_scores = nx.pagerank(arg2, alpha=0.85, weight='weight')
+            
+            # Assign PageRank values to nodes
+            for node_id, pr_score in pagerank_scores.items():
+                arg2.nodes[node_id]['pagerank'] = pr_score
+            
+            # Normalize PageRank values to 0-100 scale for easier frontend consumption
+            if pagerank_scores:
+                max_pr = max(pagerank_scores.values())
+                min_pr = min(pagerank_scores.values())
+                pr_range = max_pr - min_pr
+                
+                if pr_range > 0:
+                    for node_id, pr_score in pagerank_scores.items():
+                        normalized_pr = ((pr_score - min_pr) / pr_range) * 100
+                        arg2.nodes[node_id]['pagerank_norm'] = normalized_pr
+                else:
+                    # All nodes have the same PageRank, assign equal normalized values
+                    for node_id in pagerank_scores:
+                        arg2.nodes[node_id]['pagerank_norm'] = 50.0
+        
         return self._apply_max_nodes(arg2)
 
     # ── Ghost nodes ────────────────────────────────────────────────────────────

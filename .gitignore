@@ -53,4 +53,5 @@ e2e-playwright/.cache/
 
 # ───────── Docker ─────────
 # si generas estos archivos localmente
+docker-compose.yml
 *.pid
