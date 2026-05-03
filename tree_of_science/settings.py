@@ -197,7 +197,7 @@ REST_FRAMEWORK = {
     }
 }
 
-# Simple JWT configuration
+# Simple JWT configuration with httpOnly cookies
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -228,6 +228,14 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+
+    'AUTH_COOKIE': 'access_token',      # Nombre de la cookie de acceso
+    'REFRESH_COOKIE': 'refresh_token', # Nombre de la cookie de refresh
+    'AUTH_COOKIE_DOMAIN': None,        # Dominio de la cookie (None = mismo dominio)
+    'AUTH_COOKIE_SECURE': not DEBUG,   # True en producción, False en localhost
+    'AUTH_COOKIE_HTTP_ONLY': True,     # No accesible desde JavaScript
+    'AUTH_COOKIE_PATH': '/',            # Disponible en todo el sitio
+    'AUTH_COOKIE_SAMESITE': 'Lax',     # Protección CSRF
 }
 
 # CORS configuration

@@ -4,6 +4,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
+from . import cookie_refresh
 
 urlpatterns = [
     # =============== TUS URLs ACTUALES (COMPATIBLES) ===============
@@ -12,7 +13,7 @@ urlpatterns = [
     path('register/', views.register, name='register'),
     path('login/', views.login, name='login'),
     path('logout/', views.logout, name='logout'),
-    path('refresh-token/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('refresh-token/', cookie_refresh.cookie_refresh_token, name='token_refresh'),
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/', views.reset_password, name='reset_password'),
     

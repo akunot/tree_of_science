@@ -21,9 +21,13 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('authentication.urls')),
-    path('api/bibliography/', include('bibliography.urls')),
-    path('api/tree/', include('trees.urls')),
+    path('auth/', include('authentication.urls')),
+    path('api/auth/', include('authentication.urls')),  # ✅ NUEVO: URLs API con prefijo /api/auth/
+    path('bibliography/', include('bibliography.urls')),
+    path('api/bibliography/', include('bibliography.urls')),  # ✅ NUEVO: URLs API con prefijo /api/bibliography/
+    path('tree/', include('trees.urls')),
+    path('api/tree/', include('trees.urls')),  # ✅ NUEVO: URLs API con prefijo /api/tree/
+    path('', include('authentication.urls')),  # Para endpoints como /me/
 ]
 
 # Servir archivos media en desarrollo

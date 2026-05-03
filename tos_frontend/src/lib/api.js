@@ -46,6 +46,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        // ✅ Intento de refresh usando cookies httpOnly
         await axios.post(
           `${API_BASE_URL}/auth/refresh-token/`,
           {},
@@ -55,8 +56,16 @@ api.interceptors.response.use(
         return api(original);
       } catch (refreshError) {
         processQueue(refreshError);
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+        // ✅ Limpieza segura en caso de refresh fallido
+        try {
+          localStorage.removeItem('user');
+        } catch (e) {
+          console.warn('Error limpiando localStorage:', e);
+        }
+        // Redirección suave al login
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

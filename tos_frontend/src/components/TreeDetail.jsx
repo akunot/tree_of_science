@@ -330,11 +330,27 @@ const TreeDetail = () => {
     URL.revokeObjectURL(url);
   }, [tree, treeStats, processedNodes]);
 
-  // Exportar CSV
-  const exportToCSV = useCallback(() => {
-    const headers = ['ID', 'Título', 'Tipo', 'Año', 'Autores', 'DOI', 'PMID', 'arXiv', 'URL', 'Raíz', 'Tronco', 'Hoja', 'SAP', 'Citas'];
+  // Exportar CSV usando nuevo endpoint del backend
+  const exportToCSV = useCallback(async () => {
+    if (!id) return;
 
-    const rows = processedNodes.map(node => [
+    try {
+      const response = await treeAPI.download(id, 'csv');
+      
+      // Nuevo sistema: respuesta con download_url directa
+      if (response.data.download_url) {
+        // Descarga directa desde URL temporal
+        const a = document.createElement('a');
+        a.href = response.data.download_url;
+        a.download = response.data.filename || `arbol_${id}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        // Fallback: generar CSV local (sistema antiguo)
+        const headers = ['ID', 'Título', 'Tipo', 'Año', 'Autores', 'DOI', 'PMID', 'arXiv', 'URL', 'Raíz', 'Tronco', 'Hoja', 'SAP', 'Citas'];
+
+        const rows = processedNodes.map(node => [
       node.id,
       node.label,
       node.type_label,
@@ -351,32 +367,39 @@ const TreeDetail = () => {
       node.times_cited || 0
     ]);
 
-    let csvContent = [headers, ...rows]
-      .map(row => row.map(cell => {
-        const cellString = String(cell || '');
-        return cellString.includes(',') || cellString.includes('"') || cellString.includes('\n')
-          ? `"${cellString.replace(/"/g, '""')}"`
-          : cellString;
-      }).join(','))
-      .join('\n');
+        let csvContent = [headers, ...rows]
+          .map(row => row.map(cell => {
+            const cellString = String(cell || '');
+            return cellString.includes(',') || cellString.includes('"') || cellString.includes('\n')
+              ? `"${cellString.replace(/"/g, '""')}"`
+              : cellString;
+          }).join(','))
+          .join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `arbol-${tree.title || 'ciencia'}-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [tree, processedNodes]);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `arbol-${tree.title || 'ciencia'}-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Error descargando CSV:', error);
+      alert('No se pudo descargar el CSV. Intenta de nuevo más tarde.');
+    }
+  }, [id, tree]);
 
-  // Exportar PDF usando el endpoint del backend (/tree/<id>/download/pdf/)
+  // Exportar PDF - Sistema directo y simple
   const exportToPDF = useCallback(async () => {
     if (!id) return;
 
     try {
       const response = await treeAPI.download(id, 'pdf');
+      
+      // Sistema directo: PDF servido como blob
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
 
@@ -393,7 +416,11 @@ const TreeDetail = () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      
+      // Revocar URL
+      if (window.URL && window.URL.revokeObjectURL) {
+        window.URL.revokeObjectURL(url);
+      }
     } catch (error) {
       console.error('Error descargando PDF:', error);
       alert('No se pudo descargar el PDF. Intenta de nuevo más tarde.');
