@@ -5,6 +5,7 @@ import networkx as nx
 from datetime import datetime
 from rest_framework.exceptions import ValidationError
 from .science_tree_builder import ScienceTreeBuilder
+import os
 
 
 class TreeCreateSerializer(serializers.ModelSerializer):
@@ -91,6 +92,63 @@ class TreeCreateSerializer(serializers.ModelSerializer):
                 f"No se pudo procesar el archivo de bibliografía: {str(exc)}"
             ) from exc
 
+    def validate(self, attrs):
+        """
+        Validación personalizada para el archivo de bibliografía.
+        """
+        archivo = attrs.get('bibliography').archivo
+        if not archivo:
+            raise serializers.ValidationError("El archivo de bibliografía es requerido.")
+        
+        # Validar tamaño del archivo (límite de 15MB)
+        max_size_mb = 15
+        if archivo.size > max_size_mb * 1024 * 1024:
+            raise serializers.ValidationError(
+                f"El archivo es demasiado grande. Tamaño máximo permitido: {max_size_mb}MB. "
+                f"Archivo actual: {archivo.size / (1024*1024):.1f}MB"
+            )
+        
+        # Validar extensión del archivo
+        allowed_extensions = ['.csv', '.txt', '.bib', '.ris']
+        file_extension = os.path.splitext(archivo.name)[1].lower()
+        
+        if file_extension not in allowed_extensions:
+            raise serializers.ValidationError(
+                f"Formato de archivo no soportado. Use: {', '.join(allowed_extensions)}"
+            )
+        
+        # Validar número de papers (solo para CSV)
+        if file_extension == '.csv':
+            try:
+                # Leer solo las primeras líneas para contar papers sin cargar todo
+                archivo.seek(0)
+                content = archivo.read(1024 * 1024)  # Leer primer 1MB
+                lines = content.decode('utf-8', errors='ignore').split('\n')
+                
+                # Estimar número de papers (líneas - header)
+                estimated_papers = max(0, len(lines) - 1)
+                
+                # Si hay más de 1000 líneas en el primer MB, estimar proporcionalmente
+                if estimated_papers > 1000:
+                    # Estimar total basado en la proporción
+                    lines_per_mb = len(lines)
+                    estimated_total = int(lines_per_mb * (archivo.size / (1024 * 1024)))
+                    estimated_papers = max(estimated_papers, estimated_total)
+                
+                max_papers = 5000
+                if estimated_papers > max_papers:
+                    raise serializers.ValidationError(
+                        f"El archivo contiene demasiados papers. Máximo permitido: {max_papers}. "
+                        f"Estimado en archivo: {estimated_papers}"
+                    )
+                    
+            except Exception:
+                # Si hay error en la lectura, continuar con validación básica
+                pass
+        
+        archivo.seek(0)  # Resetear puntero para uso posterior
+        return attrs
+
     def _extract_nodes_with_stats(self, graph):
         """
         Recorre los nodos del grafo, filtra ruido, clasifica y acumula estadísticas.
@@ -110,6 +168,18 @@ class TreeCreateSerializer(serializers.ModelSerializer):
             node_dict, classification = self._build_node_dict(node_id, node_data)
             if node_dict is None:
                 # Nodo descartado por falta de relevancia (total_value == 0)
+                continue
+
+            # FILTRO ADICIONAL: Eliminar nodos con valores undefined/empty críticos
+            label = node_dict.get('label', '')
+            title = node_dict.get('title', '')
+            node_id = node_dict.get('id', '')
+            
+            # Verificar valores vacíos, nulos o que contengan "undefined"
+            if (not node_id or not label or not title or 
+                node_id == 'undefined' or label == 'undefined' or title == 'undefined' or
+                'undefined' in label.lower() or 'undefined' in title.lower() or
+                label == '' or title == ''):
                 continue
 
             dominant_group, total_val, sap_val = classification

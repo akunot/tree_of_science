@@ -73,7 +73,7 @@ def _generate_canonical_id(author: str, year: int, title: str) -> str:
     Genera un identificador canónico semántico: PrimerAutor_Año_3PalabrasClave.
     """
     # PROTECCIÓN: Si el autor viene vacío o es una coma suelta
-    author_str = (author or "").split(",")[0].strip()
+    author_str = (author or "").split(",")[0].strip() if (author or "") else "unk"
     author_words = author_str.split()
     first_author = re.sub(r'\W+', '', author_words[0]).lower() if author_words else "unk"
     
@@ -185,7 +185,7 @@ class TextRecordParser:
         refs    = self._parse_refs(r.get("_refs", []))
 
         pid = doi or _generate_canonical_id(
-            authors[0] if authors else "", year, title
+            authors[0] if authors and len(authors) > 0 else "", year, title
         )
         return {
             "id": pid, "label": title, "title": title, "authors": authors,
@@ -336,7 +336,7 @@ class TextRecordParser:
 
         # ── ID del paper ──────────────────────────────────────────────────────
         pid = doi or _generate_canonical_id(
-            authors[0] if authors else "", year, title
+            authors[0] if authors and len(authors) > 0 else "", year, title
         )
 
         return {
@@ -420,7 +420,7 @@ class ScopusCSVParser:
         refs_strings = [r.strip() for r in refs_str.split(";") if r.strip()] if refs_str else []
 
         pid = doi or _generate_canonical_id(
-            authors[0] if authors else "", year, title
+            authors[0] if authors and len(authors) > 0 else "", year, title
         )
         return {
             "id": pid, "label": title, "title": title, "authors": authors,
@@ -447,8 +447,8 @@ class ScopusCSVParser:
                 y  = ym[1] if ym else "0000"
                 
                 # PROTECCIÓN: Extraer autor de la referencia
-                ref_first_part = ref.split(",")[0].strip() if ref else ""
-                ref_words = ref_first_part.split()
+                ref_first_part = ref.split(",")[0].strip() if ref and "," in ref else ref.strip()
+                ref_words = ref_first_part.split() if ref_first_part else []
                 a = ref_words[0].lower() if ref_words else "unk"
                 
                 rid = f"{a}_{y}"
@@ -497,7 +497,7 @@ class ScopusBibParser:
         authors = [a.strip() for a in re.split(r'\s+and\s+', f.get("author", ""), flags=re.IGNORECASE) if a.strip()]
 
         pid = doi.strip() or _generate_canonical_id(
-            authors[0] if authors else "", year, title
+            authors[0] if authors and len(authors) > 0 else "", year, title
         )
 
         # ── Referencias: extraer del campo BibTeX si existe ───────────────────
@@ -563,7 +563,7 @@ class ScopusRISParser:
         tc      = int(cm[1]) if cm else 0
         authors = r.get("AU", [])
         pid     = doi or _generate_canonical_id(
-            authors[0] if authors else "", year, title
+            authors[0] if authors and len(authors) > 0 else "", year, title
         )
 
         # ── Referencias RIS: campo CR (WoS-style) o N1 con DOIs ──────────────────
@@ -671,11 +671,27 @@ class JaroWinklerDeduplicator:
     @staticmethod
     def _key_csv(ref_str: str) -> str:
         """CSV: apellido(6) + año + primera_página(3)"""
-        last = ref_str.split(",")[0].strip().split()[0].lower() if ref_str else "unk"
-        ym   = re.search(r'\((\d{4})\)', ref_str)
+        if not ref_str or not ref_str.strip():
+            return "unk_0000_"
+        
+        ref_str = ref_str.strip()
+        
+        # Protección para extraer apellido
+        parts = ref_str.split(",")
+        if parts and parts[0]:
+            words = parts[0].strip().split()
+            last = words[0].lower() if words else "unk"
+        else:
+            last = "unk"
+        
+        # Extraer año
+        ym = re.search(r'\((\d{4})\)', ref_str)
         year = ym[1] if ym else "0000"
-        pm   = re.search(r'pp\.\s*(\d+)', ref_str)
+        
+        # Extraer página
+        pm = re.search(r'pp\.\s*(\d+)', ref_str)
         page = pm[1][:3] if pm else ""
+        
         return f"{last[:6]}_{year}_{page}"
 
     def build_duplicates(self, labels: list, fmt: str = ".txt") -> dict:
@@ -1041,6 +1057,7 @@ class ReferenceNodeExtractor:
 
     @staticmethod
     def from_scopus_csv(ref_str: str) -> dict: 
+        try:
             ref_str = ref_str.strip()
             doi_m   = re.search(r'10\.\d{4,}/\S+', ref_str)
             doi = doi_m[0].rstrip(",. )").lower() if doi_m else None
@@ -1054,7 +1071,7 @@ class ReferenceNodeExtractor:
             # Si author_words tiene algo, tomamos la primera palabra, si no, usamos "unknown"
             first_author_word = author_words[0].lower() if author_words else "unknown"
 
-            node_id = doi or f"{first_author_word}_{year}"
+            node_id = doi or f"{first_author_word}_{year}" if year else f"{first_author_word}_0000"
             # ------------------------
 
             return {
@@ -1062,6 +1079,15 @@ class ReferenceNodeExtractor:
                 "title": f"{author} ({year})".strip(), "authors": [author],
                 "year": year, "doi": doi, "times_cited": 0, "references": [],
                 "url": None, "source": "csv_reference", "_is_ghost": True,
+            }
+        except (IndexError, ValueError, AttributeError) as e:
+            # Fallback seguro para referencias malformadas
+            return {
+                "id": f"unknown_ref_{hash(ref_str) % 10000}", 
+                "label": f"Unknown Reference ({ref_str[:50]}...)" if len(ref_str) > 50 else f"Unknown Reference ({ref_str})",
+                "title": f"Unknown Reference ({ref_str[:50]}...)" if len(ref_str) > 50 else f"Unknown Reference ({ref_str})", 
+                "authors": ["Unknown"], "year": 0000, "doi": None, "times_cited": 0, 
+                "references": [], "url": None, "source": "csv_reference", "_is_ghost": True,
             }
 
 
@@ -1312,8 +1338,8 @@ class ScienceTreeBuilder:
 
         corpus_first_author: dict = {}
         for p in papers:
-            if p.get("authors"):
-                fa_parts = p["authors"][0].split(",")[0].split()
+            if p.get("authors") and len(p["authors"]) > 0:
+                fa_parts = p["authors"][0].split(",")[0].split() if p["authors"][0] else []
                 if fa_parts:  # Solo lo asigna si sobrevivió al split
                     corpus_first_author[p["id"]] = fa_parts[0].lower()
 
@@ -1334,8 +1360,11 @@ class ScienceTreeBuilder:
 
         jw_map: dict = {}
         if self.use_jaro_winkler and all_ref_strings:
-            unique_raws = list(set(all_ref_strings))
-            jw_map = self.jw.build_duplicates(unique_raws, fmt=ext)
+            # Filtrar solo strings válidos para evitar IndexError
+            valid_refs = [ref for ref in all_ref_strings if isinstance(ref, str) and ref.strip()]
+            if valid_refs:
+                unique_raws = list(set(valid_refs))
+                jw_map = self.jw.build_duplicates(unique_raws, fmt=ext)
 
         def canonical(s: str) -> str:
             return jw_map.get(s, s)
@@ -1429,8 +1458,8 @@ class ScienceTreeBuilder:
             idx[pid.lower()] = pid
             if p.get("doi"):
                 idx[p["doi"].lower()] = pid
-            if p.get("authors") and p.get("year"):
-                a_parts = p["authors"][0].split(",")[0].split()
+            if p.get("authors") and len(p["authors"]) > 0 and p.get("year"):
+                a_parts = p["authors"][0].split(",")[0].split() if p["authors"][0] else []
                 if a_parts:
                     a = a_parts[0].lower()
                     idx.setdefault(f"{a}_{p['year']}", pid)
